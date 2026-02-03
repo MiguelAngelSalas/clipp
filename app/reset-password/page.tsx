@@ -1,13 +1,15 @@
 "use client"
 
 import * as React from "react"
+import { Suspense } from "react" // 👈 Importamos Suspense
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 
-export default function ResetPasswordPage() {
+// 1. MOVEMOS TODA TU LÓGICA A ESTE COMPONENTE INTERNO 👇
+function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams.get("token")
@@ -50,66 +52,74 @@ export default function ResetPasswordPage() {
 
   if (status === "success") {
     return (
-      <div className="min-h-screen bg-migue-beige flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center space-y-6">
-          <CheckCircle2 className="w-16 h-16 text-[#7A9A75] mx-auto" />
-          <h1 className="text-2xl font-bold font-serif">¡Contraseña cambiada!</h1>
-          <p className="text-gray-600">Tu clave se actualizó correctamente. Ya podés iniciar sesión.</p>
-          <Button onClick={() => router.push("/")} className="w-full bg-[#7A9A75]">
-            Ir al Login
-          </Button>
-        </div>
+      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center space-y-6">
+        <CheckCircle2 className="w-16 h-16 text-[#7A9A75] mx-auto" />
+        <h1 className="text-2xl font-bold font-serif">¡Contraseña cambiada!</h1>
+        <p className="text-gray-600">Tu clave se actualizó correctamente. Ya podés iniciar sesión.</p>
+        <Button onClick={() => router.push("/")} className="w-full bg-[#7A9A75]">
+          Ir al Login
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-migue-beige flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold font-serif">Nueva Contraseña</h1>
-          <p className="text-sm text-gray-500">Elegí una clave que no olvides fácilmente.</p>
+    <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full space-y-6">
+      <div className="text-center space-y-2">
+        <h1 className="text-2xl font-bold font-serif">Nueva Contraseña</h1>
+        <p className="text-sm text-gray-500">Elegí una clave que no olvides fácilmente.</p>
+      </div>
+
+      {status === "error" && (
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-100">
+          <AlertCircle size={16} /> {message}
         </div>
+      )}
 
-        {status === "error" && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-100">
-            <AlertCircle size={16} /> {message}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="password">Nueva Contraseña</Label>
-            <Input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="bg-white border-migue/20 h-12"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Repetir Contraseña</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="bg-white border-migue/20 h-12"
-            />
-          </div>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="password">Nueva Contraseña</Label>
+          <Input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="bg-white border-slate-200 h-12"
+          />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword">Repetir Contraseña</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="bg-white border-slate-200 h-12"
+          />
+        </div>
+      </div>
 
-        <Button 
-          type="submit" 
-          disabled={status === "loading" || !token} 
-          className="w-full bg-[#7A9A75] hover:bg-[#688563] py-7 text-lg font-bold"
-        >
-          {status === "loading" ? <Loader2 className="animate-spin" /> : "ACTUALIZAR CONTRASEÑA"}
-        </Button>
-      </form>
+      <Button 
+        type="submit" 
+        disabled={status === "loading" || !token} 
+        className="w-full bg-[#7A9A75] hover:bg-[#688563] py-7 text-lg font-bold"
+      >
+        {status === "loading" ? <Loader2 className="animate-spin" /> : "ACTUALIZAR CONTRASEÑA"}
+      </Button>
+    </form>
+  )
+}
+
+// 2. ESTE ES EL COMPONENTE PRINCIPAL QUE SE EXPORTA 👇
+// Envuelve el formulario en un Suspense para que Next.js no se rompa al buildear.
+export default function ResetPasswordPage() {
+  return (
+    <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center p-4">
+      <Suspense fallback={<div className="text-[#7A9A75] animate-pulse">Cargando...</div>}>
+        <ResetPasswordForm />
+      </Suspense>
     </div>
   )
 }
