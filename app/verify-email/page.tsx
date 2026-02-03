@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { Suspense } from "react" // 👈 Importamos Suspense
 import { useSearchParams } from "next/navigation"
 import { CheckCircle2, XCircle, Loader2, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export default function VerifyEmailPage() {
+// 1. COMPONENTE INTERNO CON LA LÓGICA 👇
+function VerifyEmailContent() {
     const searchParams = useSearchParams()
     const token = searchParams.get("token")
     
@@ -41,45 +43,59 @@ export default function VerifyEmailPage() {
     }, [token])
 
     return (
+        <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-xl max-w-md w-full text-center space-y-6">
+            
+            {status === "loading" && (
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-12 h-12 text-[#7A9A75] animate-spin" />
+                    <h1 className="text-2xl font-serif font-bold text-slate-800">{mensaje}</h1>
+                </div>
+            )}
+
+            {status === "success" && (
+                <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                    <CheckCircle2 className="w-16 h-16 text-green-500" />
+                    <h1 className="text-2xl font-serif font-bold text-slate-800">{mensaje}</h1>
+                    <p className="text-slate-500">Ya podés empezar a gestionar tus turnos en Clipp.</p>
+                    <Button 
+                        className="w-full bg-[#7A9A75] hover:bg-[#688563] text-white py-6 text-lg"
+                        onClick={() => window.location.href = "/"}
+                    >
+                        Ir al Dashboard <ArrowRight className="ml-2 w-5 h-5" />
+                    </Button>
+                </div>
+            )}
+
+            {status === "error" && (
+                <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                    <XCircle className="w-16 h-16 text-red-500" />
+                    <h1 className="text-2xl font-serif font-bold text-slate-800">¡Ups! Algo salió mal</h1>
+                    <p className="text-slate-500">{mensaje}</p>
+                    <Button 
+                        variant="outline"
+                        className="w-full border-slate-200"
+                        onClick={() => window.location.href = "/"}
+                    >
+                        Volver al inicio
+                    </Button>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// 2. COMPONENTE PRINCIPAL CON EL SUSPENSE 👇
+export default function VerifyEmailPage() {
+    return (
         <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center p-4">
-            <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-xl max-w-md w-full text-center space-y-6">
-                
-                {status === "loading" && (
-                    <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="w-12 h-12 text-[#7A9A75] animate-spin" />
-                        <h1 className="text-2xl font-serif font-bold text-slate-800">{mensaje}</h1>
-                    </div>
-                )}
-
-                {status === "success" && (
-                    <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
-                        <CheckCircle2 className="w-16 h-16 text-green-500" />
-                        <h1 className="text-2xl font-serif font-bold text-slate-800">{mensaje}</h1>
-                        <p className="text-slate-500">Ya podés empezar a gestionar tus turnos en Clipp.</p>
-                        <Button 
-                            className="w-full bg-[#7A9A75] hover:bg-[#688563] text-white py-6 text-lg"
-                            onClick={() => window.location.href = "/"}
-                        >
-                            Ir al Dashboard <ArrowRight className="ml-2 w-5 h-5" />
-                        </Button>
-                    </div>
-                )}
-
-                {status === "error" && (
-                    <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
-                        <XCircle className="w-16 h-16 text-red-500" />
-                        <h1 className="text-2xl font-serif font-bold text-slate-800">¡Ups! Algo salió mal</h1>
-                        <p className="text-slate-500">{mensaje}</p>
-                        <Button 
-                            variant="outline"
-                            className="w-full border-slate-200"
-                            onClick={() => window.location.href = "/"}
-                        >
-                            Volver al inicio
-                        </Button>
-                    </div>
-                )}
-            </div>
+            <Suspense fallback={
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-12 h-12 text-[#7A9A75] animate-spin" />
+                    <p className="text-slate-500 font-medium">Cargando verificación...</p>
+                </div>
+            }>
+                <VerifyEmailContent />
+            </Suspense>
         </div>
     )
 }
