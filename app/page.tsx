@@ -1,65 +1,147 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+import * as React from "react"
+import { LandingPage } from "@/components/ui/landingPage" 
+import { LoginPage } from "@/components/ui/loginPage" 
+import { RegisterPage } from "@/components/ui/registerPage"
+import { AgendaView } from "@/components/dashboard/agenda-view"
+
+export default function Home() { 
+  const [vista, setVista] = React.useState<"landing" | "login" | "register" | "agenda">("landing")
+  const [usuario, setUsuario] = React.useState<any>(null)
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => { setMounted(true) }, [])
+
+  // 1. CHEQUEO DE SESIÓN
+  React.useEffect(() => {
+    const usuarioGuardado = localStorage.getItem("usuario_clipp")
+    if (usuarioGuardado) {
+        setUsuario(JSON.parse(usuarioGuardado))
+        setVista("agenda") 
+    }
+  }, [])
+
+  // 2. DETECTOR DE RETORNO DE MERCADO PAGO
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("status");
+
+    if (status === "approved" && usuario) {
+      const activarSuscripcion = async () => {
+        try {
+          const res = await fetch('/api/auth/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: usuario.email_unico })
+          });
+
+          if (res.ok) {
+            const usuarioActualizado = { ...usuario, suscrito: true };
+            handleUpdateUser(usuarioActualizado); // Usamos nuestra nueva función
+            window.history.replaceState({}, document.title, "/");
+            alert("¡Excelente! Tu suscripción se activó correctamente.");
+          }
+        } catch (error) {
+          console.error("Error al activar suscripción:", error);
+        }
+      };
+      activarSuscripcion();
+    }
+  }, [usuario]);
+
+  // --- NUEVA FUNCIÓN DE ACTUALIZACIÓN GLOBAL ---
+  const handleUpdateUser = (nuevoData: any) => {
+    // Si la API devuelve el objeto dentro de 'data', lo extraemos, sino usamos el objeto directo
+    const datosFinales = nuevoData.data || nuevoData;
+    
+    setUsuario(datosFinales);
+    localStorage.setItem("usuario_clipp", JSON.stringify(datosFinales));
+  };
+
+  // HANDLERS
+  const handleLoginSuccess = () => {
+      const u = localStorage.getItem("usuario_clipp")
+      if (u) {
+          setUsuario(JSON.parse(u))
+          setVista("agenda")
+      }
+  }
+
+  const handleLogout = () => {
+      localStorage.removeItem("usuario_clipp")
+      setUsuario(null)
+      setVista("landing")
+  }
+
+  const handleRegisterSubmit = async (datosUsuario: any) => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosUsuario)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // 🟢 ÉXITO: Retornamos true y el hijo muestra la vista del sobrecito
+        return true; 
+      } else {
+        // 🔴 ERROR: En lugar de alert, retornamos el mensaje de error
+        if (res.status === 409) {
+          return "Este email ya está registrado";
+        }
+        return data.message || "Hubo un error en el registro";
+      }
+    } catch (error) { 
+      console.error("Error de registro:", error);
+      // 🟠 ERROR DE RED
+      return "Error de conexión. Verificá tu internet.";
+    }
+  }
+
+  if (!mounted) return <div className="min-h-screen bg-[#FDFBF7]"></div> 
+
+  // FLUJO DE NAVEGACIÓN
+  switch (vista) {
+      case "landing":
+          return (
+            <LandingPage 
+              onIngresar={() => setVista("login")} 
+              onRegisterClick={() => setVista("register")} 
+              idComercio={usuario?.id_comercio || 2}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+          )
+      
+      case "login":
+          return (
+            <LoginPage 
+              onLoginSuccess={handleLoginSuccess}
+              onRegisterClick={() => setVista("register")} 
+              onVolver={() => setVista("landing")}
+            />
+          )
+      
+      case "register":
+          return (
+            <RegisterPage 
+              onRegisterSubmit={handleRegisterSubmit} 
+              onLoginClick={() => setVista("login")}
+              onVolver={() => setVista("landing")}
+            />
+          )
+      
+      case "agenda":
+          return (
+            <AgendaView 
+              usuario={usuario} 
+              onLogout={handleLogout} 
+              onUpdateUser={handleUpdateUser} // <-- PASAMOS LA FUNCIÓN AQUÍ
+            />
+          )
+      
+      default:
+          return <LandingPage onIngresar={() => setVista("login")} onRegisterClick={() => setVista("register")} />
+  }
 }

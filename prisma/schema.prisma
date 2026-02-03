@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model clientes {
+  id_cliente     Int       @id @default(autoincrement())
+  id_comercio    Int
+  nombre_cliente String    @db.VarChar(100)
+  whatsapp       String    @db.VarChar(50)
+  email          String?   @db.VarChar(100)
+  fecha_creacion DateTime? @default(now()) @db.Timestamp(0)
+  comercios      comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "clientes_ibfk_1")
+  turnos         turnos[]
+
+  @@unique([id_comercio, whatsapp], map: "unique_cliente_por_comercio")
+}
+
+model comercios {
+  id_comercio        Int     @id @default(autoincrement())
+  nombre_empresa     String  @db.VarChar(100)
+  direccion          String? @db.VarChar(255)
+  telefono_unico     String? @db.VarChar(50)
+  email_unico        String  @unique(map: "email_unico") @db.VarChar(100)
+  contrasena         String  @db.VarChar(255)
+  
+  suscrito           Boolean @default(false) 
+
+  // --- NUEVOS CAMPOS DE CONFIGURACIÓN ---
+  hora_apertura       String @default("09:00")
+  hora_cierre         String @default("20:00")
+  duracion_turno_min  Int    @default(30)
+
+  // --- FLUJO DE VERIFICACIÓN DE EMAIL ---
+  emailVerificado     Boolean @default(false)
+  verificationToken   String? @unique @db.VarChar(255)
+
+  // --- CAMPOS PARA RECUPERACIÓN DE CONTRASEÑA ---
+  resetToken          String? @unique @db.VarChar(255)
+  resetTokenExpiry    DateTime? @db.Timestamp(0)
+  
+  created_at          DateTime? @default(now()) @db.Timestamp(0)
+  
+  clientes            clientes[]
+  turnos              turnos[]
+  
+  // --- ESTA ES LA LÍNEA QUE FALTABA 👇 ---
+  movimientos_caja    movimientos_caja[]
+}
+
+model turnos {
+  id_turno          Int             @id @default(autoincrement())
+  id_comercio       Int
+  id_cliente        Int?
+  
+  nombre_invitado   String?         @db.VarChar(100)
+  contacto_invitado String?         @db.VarChar(50)
+  
+  servicio          String          @db.VarChar(100)
+  fecha             DateTime        @db.Date
+  hora              DateTime        @db.Time(0)
+  estado            turnos_estado?  @default(pendiente)
+  
+  monto             Decimal?        @default(0.00) @db.Decimal(10, 2)
+  
+  // --- NUEVO CAMPO AGREGADO ---
+  metodo_pago       String?         @db.VarChar(50) // "EFECTIVO", "DIGITAL"
+  
+  created_at        DateTime?       @default(now()) @db.Timestamp(0)
+  
+  comercios         comercios       @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "turnos_ibfk_1")
+  clientes          clientes?       @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction, map: "turnos_ibfk_2")
+
+  @@index([id_cliente], map: "id_cliente")
+  @@index([id_comercio], map: "id_comercio")
+  @@unique([id_comercio, fecha, hora], name: "unique_turno_comercio_tiempo")
+}
+
+model movimientos_caja {
+  id_movimiento     Int             @id @default(autoincrement())
+  id_comercio       Int
+  
+  fecha             DateTime        @default(now()) @db.Timestamp(0)
+  monto             Decimal         @db.Decimal(10, 2)
+  descripcion       String          @db.VarChar(255)
+  metodo_pago       String          @db.VarChar(50) // "EFECTIVO", "DIGITAL"
+  tipo              String          @default("INGRESO") @db.VarChar(20)
+  
+  // Relación con tu tabla de comercios existente
+  comercios         comercios       @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "caja_ibfk_1")
+
+  @@index([id_comercio], map: "id_comercio_caja")
+}
+
+enum turnos_estado {
+  pendiente
+  confirmado
+  finalizado
+  cancelado
+}
