@@ -27,6 +27,7 @@ model comercios {
   telefono_unico     String? @db.VarChar(50)
   email_unico        String  @unique(map: "email_unico") @db.VarChar(100)
   contrasena         String  @db.VarChar(255)
+  slug               String   @unique @db.VarChar(100)
   
   suscrito           Boolean @default(false) 
 
