@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     try {
       await resend.emails.send({
         // IMPORTANTE: Si no validaste dominio, usá 'onboarding@resend.dev'
-        from: 'Clipp <clippverificacion@gmail.com>', 
+        from: 'Clipp <notificaciones@clipp.com>', 
         to: data.email,
         subject: '¡Bienvenido a Clipp! Verificá tu cuenta',
         html: `
