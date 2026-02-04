@@ -7,23 +7,77 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Loader2, Home } from "lucide-react" 
 import { cn } from "@/lib/utils"
 
-// Componentes
-import { StepCalendar } from "./components/StepCalendar" // <--- NUEVO
+// Componentes (Asegurate que estén en la carpeta components dentro de reservas/[slug])
+import { StepCalendar } from "./components/StepCalendar" 
 import { StepTime } from "./components/StepTime"
 import { StepData } from "./components/StepData"
-import { StepSuccess } from "./components/StepSuccess" // <--- NUEVO
+import { StepSuccess } from "./components/StepSuccess" 
 
 // Hook
-import { useGuestBooking } from "./hooks/useGuestBooking" // <--- NUEVO
+import { useGuestBooking } from "./hooks/useGuestBooking" 
 
+// --------------------------------------------------------
+// 1. COMPONENTE PADRE (EL TRADUCTOR)
+// --------------------------------------------------------
 export default function GuestBookingPage() {
   const params = useParams()
   const router = useRouter()
-  const idComercio = Number(params.id)
+  
+  // Capturamos el SLUG del link (ej: "el-kuni")
+  const slug = params.slug as string 
 
+  const [idComercio, setIdComercio] = React.useState<number | null>(null)
+  const [error, setError] = React.useState(false)
+
+  React.useEffect(() => {
+    // MAGIA: Buscamos el ID usando el Slug
+    const fetchId = async () => {
+      try {
+        const res = await fetch(`/api/usuarios/publico?slug=${slug}`)
+        if (res.ok) {
+          const data = await res.json()
+          setIdComercio(data.id_comercio) // <--- ¡ACÁ CONSEGUIMOS EL NÚMERO!
+        } else {
+          console.error("No se encontró el comercio")
+          setError(true)
+        }
+      } catch (e) {
+        console.error("Error buscando ID:", e)
+        setError(true)
+      }
+    }
+
+    if (slug) fetchId()
+  }, [slug])
+
+  // PANTALLA DE ERROR
+  if (error) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFBF7]">
+        <h1 className="text-4xl mb-2">🤔</h1>
+        <h2 className="text-2xl font-bold text-[#3A3A3A] mb-4">Comercio no encontrado</h2>
+        <Button onClick={() => router.push('/')}>Volver al inicio</Button>
+    </div>
+  )
+
+  // PANTALLA DE CARGA (Mientras traduce el nombre a ID)
+  if (!idComercio) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]">
+      <Loader2 className="w-10 h-10 animate-spin text-[#7A9A75]" />
+    </div>
+  )
+
+  // SI YA TENEMOS EL ID, MOSTRAMOS EL FORMULARIO REAL
+  return <BookingForm idComercio={idComercio} slug={slug} />
+}
+
+// --------------------------------------------------------
+// 2. COMPONENTE HIJO (TU FORMULARIO REAL)
+// --------------------------------------------------------
+function BookingForm({ idComercio, slug }: { idComercio: number, slug: string }) {
+  const router = useRouter()
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1)
 
-  // Usamos el Hook para traer toda la lógica
+  // Ahora el hook recibe un NÚMERO real y funciona perfecto
   const { 
     comercio, loadingData, submitting,
     date, setDate, selectedTime, setSelectedTime,
@@ -31,7 +85,6 @@ export default function GuestBookingPage() {
     horariosPosibles, getHorariosLibres, reservarTurno 
   } = useGuestBooking(idComercio)
 
-  // Handler de confirmación
   const handleConfirmar = async () => {
     const exito = await reservarTurno()
     if (exito) setStep(4)
@@ -45,9 +98,9 @@ export default function GuestBookingPage() {
   return (
     <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4">
       
-      {/* Botón Volver */}
+      {/* Botón Volver (Corregido para usar el Slug) */}
       {step !== 4 && (
-        <Button variant="ghost" onClick={() => router.push(`/barberia/${idComercio}`)} className="absolute top-4 left-4 text-gray-500 hover:text-[#7A9A75]">
+        <Button variant="ghost" onClick={() => router.push(`/${slug}`)} className="absolute top-4 left-4 text-gray-500 hover:text-[#7A9A75]">
           <Home className="mr-2 h-4 w-4" /> Volver a la Barbería
         </Button>
       )}
@@ -102,7 +155,7 @@ export default function GuestBookingPage() {
             <StepSuccess 
               date={date} time={selectedTime}
               onNew={() => window.location.reload()}
-              onBack={() => router.push(`/barberia/${idComercio}`)}
+              onBack={() => router.push(`/${slug}`)} // Volver al perfil
             />
           )}
         </CardContent>
