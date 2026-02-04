@@ -11,20 +11,29 @@ export default function PerfilBarberiaPage() {
   const router = useRouter()
   const [info, setInfo] = React.useState<any>(null)
 
+  // 1. CAPTURAMOS EL SLUG (No el ID)
+  const slug = params.slug; 
+
   React.useEffect(() => {
     const fetchBarberia = async () => {
       try {
-        const res = await fetch(`/api/usuarios/publico?id_comercio=${params.id}`)
+        // 2. PEDIMOS A LA API POR SLUG
+        const res = await fetch(`/api/usuarios/publico?slug=${slug}`)
+        
         if (res.ok) {
           const data = await res.json()
           setInfo(data)
+        } else {
+          console.error("Barbería no encontrada (404)")
         }
       } catch (error) {
         console.error("Error al cargar la barbería:", error)
       }
     }
-    if (params.id) fetchBarberia()
-  }, [params.id])
+
+    // Solo ejecutamos si tenemos el slug
+    if (slug) fetchBarberia()
+  }, [slug])
 
   if (!info) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F2F0EA]">
@@ -33,28 +42,23 @@ export default function PerfilBarberiaPage() {
   )
 
   return (
-    // FONDO ARENA: Para marcar contraste con la tarjeta blanca
     <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center p-6">
       
-      {/* CONTENEDOR CON BORDE EXTERNO Y SOMBRA LIGERA */}
       <div className="relative p-2 border-2 border-[#7A9A75]/20 rounded-[2.5rem] bg-black/5 shadow-inner">
         
         <Card className="w-full max-w-md border-[1px] border-[#7A9A75]/30 shadow-2xl bg-white overflow-hidden rounded-[2.2rem] relative">
           
-          {/* BANNER SUPERIOR */}
           <div className="h-32 bg-[#7A9A75] w-full flex items-end justify-center">
-             {/* LOGO CIRCULAR */}
              <div className="w-24 h-24 bg-white rounded-full translate-y-12 flex items-center justify-center shadow-lg border-4 border-white overflow-hidden">
                 <div className="w-full h-full border-2 border-[#7A9A75]/10 rounded-full flex items-center justify-center bg-[#FDFBF7]">
                   <span className="text-3xl font-serif font-bold text-[#7A9A75]">
-                    {info.nombre_empresa[0].toUpperCase()}
+                    {info.nombre_empresa ? info.nombre_empresa[0].toUpperCase() : "C"}
                   </span>
                 </div>
              </div>
           </div>
 
           <CardContent className="pt-16 pb-10 px-8 text-center">
-            {/* TÍTULO Y LÍNEA DECORATIVA */}
             <div className="mb-6">
               <h1 className="text-3xl font-serif font-bold text-[#3A3A3A] mb-1 italic">
                 {info.nombre_empresa}
@@ -62,7 +66,6 @@ export default function PerfilBarberiaPage() {
               <div className="w-12 h-0.5 bg-[#7A9A75] mx-auto opacity-50" />
             </div>
             
-            {/* RATING */}
             <div className="flex items-center justify-center gap-1 text-yellow-600/80 mb-8">
               {[1, 2, 3, 4, 5].map((i) => (
                 <Star key={i} size={14} fill="currentColor" />
@@ -70,7 +73,6 @@ export default function PerfilBarberiaPage() {
               <span className="text-[10px] text-gray-400 uppercase tracking-tighter ml-2 font-bold">Local Destacado</span>
             </div>
 
-            {/* CAJAS DE INFORMACIÓN (Fondo tono beige claro) */}
             <div className="grid grid-cols-1 gap-3 mb-10">
               <div className="flex items-center justify-between px-5 py-4 border border-gray-100 rounded-2xl bg-[#FDFBF7]">
                 <div className="flex items-center gap-3">
@@ -91,16 +93,15 @@ export default function PerfilBarberiaPage() {
               </div>
             </div>
 
-            {/* BOTÓN DE ACCIÓN */}
+            {/* 3. BOTÓN CORREGIDO: Redirige usando el slug */}
             <Button 
-              onClick={() => router.push(`/reservar/${params.id}`)}
+              onClick={() => router.push(`/reservar/${slug}`)}
               className="w-full h-16 text-xl bg-[#3A3A3A] hover:bg-[#7A9A75] text-white rounded-2xl transition-all duration-300 shadow-xl group"
             >
               <Calendar className="mr-3 w-5 h-5 group-hover:scale-110 transition-transform" />
               Reservar Turno
             </Button>
 
-            {/* FOOTER DEL PERFIL */}
             <div className="mt-8 flex flex-col items-center gap-1">
               <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em]">
                 Exclusivo para {info.nombre_empresa}
