@@ -4,14 +4,17 @@ import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Calendar, Clock, Scissors, Star } from "lucide-react"
+import { Loader2, Calendar, Clock, Scissors, Star, Home } from "lucide-react"
 
 export default function PerfilBarberiaPage() {
   const params = useParams()
   const router = useRouter()
+  
+  // Estados para manejar la info y los errores
   const [info, setInfo] = React.useState<any>(null)
+  const [error, setError] = React.useState(false)
 
-  // 1. CAPTURAMOS EL SLUG (No el ID)
+  // 1. CAPTURAMOS EL SLUG
   const slug = params.slug; 
 
   React.useEffect(() => {
@@ -24,23 +27,45 @@ export default function PerfilBarberiaPage() {
           const data = await res.json()
           setInfo(data)
         } else {
-          console.error("Barbería no encontrada (404)")
+          // Si da 404 o 500, activamos el modo error para que no gire infinito
+          console.error("Barbería no encontrada o error de servidor")
+          setError(true)
         }
-      } catch (error) {
-        console.error("Error al cargar la barbería:", error)
+      } catch (err) {
+        console.error("Error de conexión:", err)
+        setError(true)
       }
     }
 
-    // Solo ejecutamos si tenemos el slug
     if (slug) fetchBarberia()
   }, [slug])
 
+  // --- RENDERIZADO CONDICIONAL ---
+
+  // CASO 1: HUBO ERROR (No existe el usuario o falta migración)
+  if (error) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F2F0EA] text-[#3A3A3A] p-4 text-center">
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-red-100">
+        <h1 className="text-4xl mb-4">🏚️</h1>
+        <h2 className="text-xl font-serif font-bold mb-2">Barbería no encontrada</h2>
+        <p className="text-gray-500 mb-6 text-sm">
+          El link es incorrecto o el comercio no existe.
+        </p>
+        <Button onClick={() => router.push('/')} className="bg-[#3A3A3A] text-white rounded-xl">
+          <Home className="mr-2 w-4 h-4" /> Volver al Inicio
+        </Button>
+      </div>
+    </div>
+  )
+
+  // CASO 2: CARGANDO (Spinner)
   if (!info) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F2F0EA]">
       <Loader2 className="animate-spin text-[#7A9A75]" />
     </div>
   )
 
+  // CASO 3: ÉXITO (Mostramos la tarjeta)
   return (
     <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center p-6">
       
@@ -48,6 +73,7 @@ export default function PerfilBarberiaPage() {
         
         <Card className="w-full max-w-md border-[1px] border-[#7A9A75]/30 shadow-2xl bg-white overflow-hidden rounded-[2.2rem] relative">
           
+          {/* BANNER SUPERIOR */}
           <div className="h-32 bg-[#7A9A75] w-full flex items-end justify-center">
              <div className="w-24 h-24 bg-white rounded-full translate-y-12 flex items-center justify-center shadow-lg border-4 border-white overflow-hidden">
                 <div className="w-full h-full border-2 border-[#7A9A75]/10 rounded-full flex items-center justify-center bg-[#FDFBF7]">
@@ -93,7 +119,7 @@ export default function PerfilBarberiaPage() {
               </div>
             </div>
 
-            {/* 3. BOTÓN CORREGIDO: Redirige usando el slug */}
+            {/* BOTÓN DE ACCIÓN */}
             <Button 
               onClick={() => router.push(`/reservar/${slug}`)}
               className="w-full h-16 text-xl bg-[#3A3A3A] hover:bg-[#7A9A75] text-white rounded-2xl transition-all duration-300 shadow-xl group"
