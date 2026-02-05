@@ -1,27 +1,27 @@
-"use client" // <--- Importante
+"use client"
 
-import { NuevoTurnoModal } from "@/components/ui/nuevoTurnoModal" // O la ruta que tengas
+import { NuevoTurnoModal } from "@/components/ui/nuevoTurnoModal" 
 import { ResumenDiaModal } from "@/components/ui/resumenDiaModal"
 import { RegistrarCobroModal } from "@/components/ui/registrarCobroModal" 
 import { SubscriptionModal } from "@/components/dashboard/subscription-modal"
 
 export function AgendaModals({ logic }: { logic: any }) {
-    // 1. Desestructuramos todo lo que viene del hook
+    // 1. Desestructuramos todo (AGREGAMOS extrasDelDia)
     const { 
         modals, 
         cerrarModal, 
         guardarTurno, 
         registrarCobro, 
         date, 
-        turnosDelDia, 
+        turnosDelDia,
+        extrasDelDia, // <--- 1. IMPORTANTE: TRAEMOS LOS EXTRAS DEL HOOK
         turnoEditando, 
         usuario, 
         nombreBarberia 
     } = logic
 
-    // 2. DEFINIMOS LA FUNCIÓN TRADUCTORA ACÁ (Antes del return) 👇
+    // 2. DEFINIMOS LA FUNCIÓN TRADUCTORA
     const handleGuardarCobro = (datosModal: any) => {
-        // Acá conectamos tu Modal (concepto) con la API (descripcion)
         registrarCobro({
             monto: datosModal.monto,
             descripcion: datosModal.concepto, 
@@ -29,14 +29,14 @@ export function AgendaModals({ logic }: { logic: any }) {
         })
     }
 
-    // 3. AHORA SÍ EL RETURN
+    // 3. EL RETURN
     return (
         <>
             <NuevoTurnoModal 
                 open={modals.nuevoTurno} 
                 onOpenChange={(open) => !open && cerrarModal('nuevoTurno')}
                 date={date} 
-                turnosDelDia={turnosDelDia} 
+                turnos={turnosDelDia} 
                 turnoAEditar={turnoEditando}
                 onGuardar={guardarTurno} 
                 usuario={usuario} 
@@ -45,8 +45,6 @@ export function AgendaModals({ logic }: { logic: any }) {
             <RegistrarCobroModal 
                 open={modals.cobro}
                 onOpenChange={(open) => !open && cerrarModal('cobro')}
-                
-                // Ahora esta variable SÍ existe porque la definimos arriba 👆
                 onGuardar={handleGuardarCobro} 
             />
 
@@ -54,7 +52,8 @@ export function AgendaModals({ logic }: { logic: any }) {
                 open={modals.resumen} 
                 onOpenChange={(open) => !open && cerrarModal('resumen')} 
                 date={date} 
-                turnos={turnosDelDia} 
+                turnos={turnosDelDia}
+                extras={extrasDelDia} // <--- 2. SE LO PASAMOS AL MODAL
             />
 
             <SubscriptionModal 

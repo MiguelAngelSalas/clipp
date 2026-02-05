@@ -7,26 +7,35 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Clock, X, CheckCircle2, CircleDashed, Ban } from "lucide-react" // <--- Agregamos icono BAN
+import { Clock, X, CheckCircle2, CircleDashed, Ban, Banknote } from "lucide-react" // <--- Agregamos icono Banknote
 
 interface ResumenDiaModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   date: Date | undefined
-  turnos: any[] 
+  turnos: any[]
+  extras?: any[] // <--- NUEVO: Ahora aceptamos la lista de extras (el ? es para que no rompa si viene vacio)
 }
 
-export function ResumenDiaModal({ open, onOpenChange, date, turnos }: ResumenDiaModalProps) {
+export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] }: ResumenDiaModalProps) {
   
-  // 1. CAJA REAL: Solo lo "finalizado"
-  const totalCaja = turnos
+  // 1. CAJA REAL (Turnos Finalizados)
+  const totalTurnosCaja = turnos
     .filter(t => t.estado === "finalizado")
     .reduce((acc, t) => acc + Number(t.monto || 0), 0)
 
-  // 2. ESTIMADO: Sumamos Pendientes + Finalizados (EXCLUIMOS CANCELADOS)
-  const totalEstimado = turnos
-    .filter(t => t.estado !== "cancelado") // <--- ESTA ES LA CLAVE
+  // 2. EXTRAS (Siempre son plata real)
+  const totalExtras = extras.reduce((acc, e) => acc + Number(e.monto || 0), 0)
+
+  // 3. SUMA FINAL (Turnos Finalizados + Extras)
+  const totalCaja = totalTurnosCaja + totalExtras
+
+  // 4. ESTIMADO (Turnos no cancelados + Extras)
+  const totalTurnosEstimado = turnos
+    .filter(t => t.estado !== "cancelado")
     .reduce((acc, t) => acc + Number(t.monto || 0), 0)
+
+  const totalEstimado = totalTurnosEstimado + totalExtras
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -47,6 +56,35 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos }: ResumenDia
           
           {/* LISTA */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            
+            {/* 1. RENDERIZAMOS LOS EXTRAS PRIMERO (O PODES PONERLOS AL FINAL) */}
+            {extras.length > 0 && extras.map((extra) => (
+               <div key={`extra-${extra.id}`} className="p-5 rounded-xl shadow-sm border border-yellow-200/50 bg-yellow-50/50 flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                       <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shadow-sm bg-yellow-100 text-yellow-700">
+                           <Banknote className="w-6 h-6" />
+                       </div>
+                       <div>
+                           <p className="font-bold text-xl text-[#333]">
+                               {extra.descripcion || "Ingreso Extra"}
+                           </p>
+                           <p className="text-sm text-[#666] uppercase tracking-wide flex items-center gap-2">
+                               Movimiento de Caja
+                           </p>
+                       </div>
+                   </div>
+                   <div className="text-right">
+                       <div className="flex items-center justify-end gap-1 text-yellow-600 font-bold text-xs mb-1">
+                           <CheckCircle2 className="w-3 h-3" /> EXTRA
+                       </div>
+                       <p className="font-bold text-lg text-[#333]">
+                           $ {extra.monto}
+                       </p>
+                   </div>
+               </div>
+            ))}
+
+            {/* 2. RENDERIZAMOS LOS TURNOS */}
             {turnos.length > 0 ? (
                 turnos.map((turno) => {
                     const horaDate = new Date(turno.hora);
@@ -55,9 +93,8 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos }: ResumenDia
                         : horaDate.getUTCHours(); 
 
                     const estaFinalizado = turno.estado === "finalizado";
-                    const estaCancelado = turno.estado === "cancelado"; // <--- Detectamos cancelado
+                    const estaCancelado = turno.estado === "cancelado";
 
-                    // Estilos dinámicos según estado
                     let containerClass = "bg-white/50 border-gray-400/10 opacity-70";
                     if (estaFinalizado) containerClass = "bg-white/90 border-green-200";
                     if (estaCancelado) containerClass = "bg-red-50 border-red-100 opacity-60 grayscale-[0.5]";
@@ -79,20 +116,19 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos }: ResumenDia
                                 </div>
                             </div>
                             <div className="text-right">
-                                 {/* LÓGICA DE ETIQUETAS */}
                                  {estaFinalizado && (
                                      <div className="flex items-center justify-end gap-1 text-[#7A9A75] font-bold text-xs mb-1">
-                                         <CheckCircle2 className="w-3 h-3" /> COBRADO
+                                          <CheckCircle2 className="w-3 h-3" /> COBRADO
                                      </div>
                                  )}
                                  {estaCancelado && (
                                      <div className="flex items-center justify-end gap-1 text-red-400 font-bold text-xs mb-1">
-                                         <Ban className="w-3 h-3" /> CANCELADO
+                                          <Ban className="w-3 h-3" /> CANCELADO
                                      </div>
                                  )}
                                  {!estaFinalizado && !estaCancelado && (
                                      <div className="flex items-center justify-end gap-1 text-gray-400 font-bold text-xs mb-1">
-                                         <CircleDashed className="w-3 h-3" /> PENDIENTE
+                                          <CircleDashed className="w-3 h-3" /> PENDIENTE
                                      </div>
                                  )}
 
@@ -104,10 +140,12 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos }: ResumenDia
                     )
                 })
             ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-40 text-migue-gris">
-                    <Clock className="w-16 h-16 mb-4" />
-                    <p className="text-xl">No hay turnos para hoy.</p>
-                </div>
+                extras.length === 0 && ( // Solo mostramos "No hay nada" si no hay turnos NI extras
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-migue-gris">
+                        <Clock className="w-16 h-16 mb-4" />
+                        <p className="text-xl">No hay movimientos hoy.</p>
+                    </div>
+                )
             )}
           </div>
           

@@ -5,6 +5,7 @@ export function useAgendaLogic(usuario: any) {
     // --- ESTADOS DE DATOS ---
     const [date, setDate] = useState<Date | undefined>(new Date())
     const [turnos, setTurnos] = useState<any[]>([])
+    const [extras, setExtras] = useState<any[]>([]) // <--- 1. NUEVO ESTADO PARA LOS EXTRAS
     const [loading, setLoading] = useState(false)
 
     // --- ESTADOS DE MODALES ---
@@ -21,18 +22,24 @@ export function useAgendaLogic(usuario: any) {
     const tieneSuscripcion = usuario?.suscrito || true
     const nombreBarberia = usuario?.nombre_empresa || usuario?.nombre || "Barbería"
 
-    // --- 1. CARGA DE DATOS ---
-    const cargarTurnos = useCallback(async () => {
+    // --- 1. CARGA DE DATOS (AHORA TRAE TODO) ---
+    const cargarDatos = useCallback(async () => {
         if (!idComercio) return
         setLoading(true)
         try {
-            const res = await fetch(`/api/turnos?id_comercio=${idComercio}`)
-            if (res.ok) setTurnos(await res.json())
+            // A. Traemos los TURNOS
+            const resTurnos = await fetch(`/api/turnos?id_comercio=${idComercio}`)
+            if (resTurnos.ok) setTurnos(await resTurnos.json())
+
+            // B. Traemos los EXTRAS (La plata suelta)
+            const resExtras = await fetch(`/api/finanzas/extra?id_comercio=${idComercio}`)
+            if (resExtras.ok) setExtras(await resExtras.json())
+
         } catch (e) { console.error(e) } 
         finally { setLoading(false) }
     }, [idComercio])
 
-    useEffect(() => { cargarTurnos() }, [cargarTurnos])
+    useEffect(() => { cargarDatos() }, [cargarDatos])
 
     // --- 2. LÓGICA DE PERMISOS ---
     const abrirModal = (tipo: 'nuevoTurno' | 'resumen' | 'cobro', turnoData?: any) => {
@@ -40,9 +47,7 @@ export function useAgendaLogic(usuario: any) {
             setModals(prev => ({ ...prev, suscripcion: true }))
             return
         }
-        
         if (tipo === 'nuevoTurno') setTurnoEditando(turnoData || null)
-        
         setModals(prev => ({ ...prev, [tipo]: true }))
     }
 
@@ -51,12 +56,12 @@ export function useAgendaLogic(usuario: any) {
         if (tipo === 'nuevoTurno') setTurnoEditando(null)
     }
 
-    // --- 3. ACCIONES (Guardar/Cobrar/Finalizar) ---
+    // --- 3. ACCIONES ---
     
-    // A. Guardar (Nuevo o Editar)
+    // A. Guardar Turno
     const guardarTurno = async (datos: any) => {
         if (!date || !idComercio) return
-        const toastId = toast.loading("Conectando con la base de datos...");
+        const toastId = toast.loading("Guardando...");
 
         try {
             const method = datos.id_turno ? 'PUT' : 'POST'
@@ -70,121 +75,96 @@ export function useAgendaLogic(usuario: any) {
                 body: JSON.stringify(body)
             });
 
-            const dataRespuesta = await res.json();
-
             if (res.ok) {
-                toast.success(method === 'POST' ? "¡Turno Agendado!" : "¡Turno Actualizado!", {
-                    id: toastId,
-                    description: `Cliente: ${datos.nombre_invitado}`,
-                    duration: 4000, 
-                });
-
-                await cargarTurnos();
+                toast.success("¡Listo!", { id: toastId });
+                await cargarDatos(); // Recargamos todo
                 cerrarModal('nuevoTurno');
             } else { 
-                toast.error("No se pudo guardar", {
-                    id: toastId,
-                    description: dataRespuesta.message || "Ocurrió un error inesperado.",
-                    duration: 5000, 
-                });
+                toast.error("Error al guardar", { id: toastId });
             }
-        } catch (e) { 
-            console.error(e);
-            toast.error("Error de conexión", {
-                id: toastId,
-                description: "Verificá tu internet e intentá de nuevo.",
-                duration: 5000,
-            });
-        }
+        } catch (e) { toast.error("Error de conexión", { id: toastId }); }
     }
 
-    // B. Registrar Cobro (Caja Extra)
+    // B. Registrar Cobro (CORREGIDO)
     const registrarCobro = async (datos: any) => {
         if (!idComercio) return
         const toastId = toast.loading("Registrando en caja...");
 
         try {
-            const res = await fetch('/api/caja/registrar', {
+            // Usamos la API unificada de finanzas
+            const res = await fetch('/api/finanzas/extra', {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...datos, id_comercio: Number(idComercio) })
             });
 
             if (res.ok) {
-                toast.success("¡Cobro Registrado!", {
-                    id: toastId,
-                    description: `Monto: $${datos.monto}`,
-                    duration: 4000
-                });
+                toast.success("¡Cobro Registrado!", { id: toastId });
                 cerrarModal('cobro');
-                await cargarTurnos();
+                await cargarDatos(); // Importante: Recargar para que aparezca en el resumen
             } else { 
-                toast.error("Error al cobrar", {
-                    id: toastId,
-                    description: "No se pudo guardar el movimiento."
-                });
+                toast.error("Error al cobrar", { id: toastId });
             }
-        } catch (e) { 
-            console.error(e);
-            toast.error("Error de conexión", {
-                id: toastId,
-                description: "Verificá tu internet."
-            });
-        }
+        } catch (e) { toast.error("Error de conexión", { id: toastId }); }
     }
 
-    // C. FINALIZAR TURNO (LA NUEVA FUNCIÓN) 👇👇👇
+    // C. Finalizar Turno
     const finalizarTurno = async (idTurno: number, montoFinal: number, metodoPago: string) => {
-        const toastId = toast.loading("Finalizando turno...");
-
+        const toastId = toast.loading("Finalizando...");
         try {
             const res = await fetch('/api/turnos', {
-                method: 'PUT', // Usamos PUT para actualizar el estado
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id_turno: idTurno,
-                    estado: 'finalizado', // Cambiamos estado
-                    monto: montoFinal,    // Guardamos cuánto se cobró realmente
-                    metodoPago: metodoPago // Guardamos si fue Efectivo o Digital
+                    estado: 'finalizado',
+                    monto: montoFinal,
+                    metodoPago: metodoPago
                 })
             });
 
             if (res.ok) {
-                toast.success("¡Turno Finalizado!", {
-                    id: toastId,
-                    // Feedback lindo: "$10000 en EFECTIVO"
-                    description: `$${montoFinal} cobrados en ${metodoPago.toLowerCase()}`,
-                    duration: 4000
-                });
-                await cargarTurnos(); // Refrescamos la agenda para que cambie de color
+                toast.success("¡Turno Cobrado!", { id: toastId });
+                await cargarDatos();
             } else {
-                toast.error("Error al finalizar", { id: toastId });
+                toast.error("Error", { id: toastId });
             }
-        } catch (error) {
-            console.error(error);
-            toast.error("Error de conexión", { id: toastId });
-        }
+        } catch (error) { toast.error("Error de conexión", { id: toastId }); }
     }
 
     // --- 4. DATOS COMPUTADOS ---
+    
+    // Filtramos los turnos del día seleccionado
     const turnosDelDia = useMemo(() => {
         if (!date) return []
         const fechaCalendario = date.toLocaleDateString('en-CA')
         return turnos.filter(t => String(t.fecha).split('T')[0] === fechaCalendario)
     }, [date, turnos])
 
+    // Filtramos los EXTRAS del día seleccionado (NUEVO) 👇
+    const extrasDelDia = useMemo(() => {
+        if (!date) return []
+        // Convertimos la fecha seleccionada a string YYYY-MM-DD
+        const fechaCalendario = date.toLocaleDateString('en-CA') 
+        
+        return extras.filter(e => {
+            // Aseguramos que la fecha del extra sea comparable
+            const fechaExtra = new Date(e.fecha).toLocaleDateString('en-CA')
+            return fechaExtra === fechaCalendario
+        })
+    }, [date, extras])
+
+
     return {
-        // Datos
         date, setDate,
         turnos, turnosDelDia,
+        extrasDelDia, // <--- 2. EXPORTAMOS LOS EXTRAS FILTRADOS
         usuario, nombreBarberia,
-        // Modales
         modals, turnoEditando,
         abrirModal, cerrarModal,
-        // Acciones
         guardarTurno, 
         registrarCobro, 
-        cargarTurnos,
-        finalizarTurno // <--- 4. NO TE OLVIDES DE EXPORTARLA ACÁ
+        cargarTurnos: cargarDatos,
+        finalizarTurno
     }
 }
