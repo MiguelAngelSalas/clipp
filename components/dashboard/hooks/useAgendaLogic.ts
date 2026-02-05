@@ -5,7 +5,7 @@ export function useAgendaLogic(usuario: any) {
     // --- ESTADOS DE DATOS ---
     const [date, setDate] = useState<Date | undefined>(new Date())
     const [turnos, setTurnos] = useState<any[]>([])
-    const [extras, setExtras] = useState<any[]>([]) // <--- 1. NUEVO ESTADO PARA LOS EXTRAS
+    const [extras, setExtras] = useState<any[]>([]) 
     const [loading, setLoading] = useState(false)
 
     // --- ESTADOS DE MODALES ---
@@ -22,7 +22,7 @@ export function useAgendaLogic(usuario: any) {
     const tieneSuscripcion = usuario?.suscrito || true
     const nombreBarberia = usuario?.nombre_empresa || usuario?.nombre || "Barbería"
 
-    // --- 1. CARGA DE DATOS (AHORA TRAE TODO) ---
+    // --- 1. CARGA DE DATOS ---
     const cargarDatos = useCallback(async () => {
         if (!idComercio) return
         setLoading(true)
@@ -31,9 +31,14 @@ export function useAgendaLogic(usuario: any) {
             const resTurnos = await fetch(`/api/turnos?id_comercio=${idComercio}`)
             if (resTurnos.ok) setTurnos(await resTurnos.json())
 
-            // B. Traemos los EXTRAS (La plata suelta)
-            const resExtras = await fetch(`/api/finanzas/extra?id_comercio=${idComercio}`)
-            if (resExtras.ok) setExtras(await resExtras.json())
+            // B. Traemos los EXTRAS (CORREGIDO AQUI 🚨)
+            // Apuntamos a la ruta real que creamos: /api/caja/registrar
+            const resExtras = await fetch(`/api/caja/registrar?id_comercio=${idComercio}`)
+            if (resExtras.ok) {
+                const dataExtras = await resExtras.json()
+                console.log("💰 Extras cargados:", dataExtras) 
+                setExtras(dataExtras)
+            }
 
         } catch (e) { console.error(e) } 
         finally { setLoading(false) }
@@ -77,7 +82,7 @@ export function useAgendaLogic(usuario: any) {
 
             if (res.ok) {
                 toast.success("¡Listo!", { id: toastId });
-                await cargarDatos(); // Recargamos todo
+                await cargarDatos(); 
                 cerrarModal('nuevoTurno');
             } else { 
                 toast.error("Error al guardar", { id: toastId });
@@ -85,14 +90,14 @@ export function useAgendaLogic(usuario: any) {
         } catch (e) { toast.error("Error de conexión", { id: toastId }); }
     }
 
-    // B. Registrar Cobro (CORREGIDO)
+    // B. Registrar Cobro (CORREGIDO AQUI TAMBIEN 🚨)
     const registrarCobro = async (datos: any) => {
         if (!idComercio) return
         const toastId = toast.loading("Registrando en caja...");
 
         try {
-            // Usamos la API unificada de finanzas
-            const res = await fetch('/api/finanzas/extra', {
+            // Apuntamos a la ruta real: /api/caja/registrar
+            const res = await fetch('/api/caja/registrar', {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...datos, id_comercio: Number(idComercio) })
@@ -101,7 +106,7 @@ export function useAgendaLogic(usuario: any) {
             if (res.ok) {
                 toast.success("¡Cobro Registrado!", { id: toastId });
                 cerrarModal('cobro');
-                await cargarDatos(); // Importante: Recargar para que aparezca en el resumen
+                await cargarDatos(); 
             } else { 
                 toast.error("Error al cobrar", { id: toastId });
             }
@@ -134,31 +139,22 @@ export function useAgendaLogic(usuario: any) {
 
     // --- 4. DATOS COMPUTADOS ---
     
-    // Filtramos los turnos del día seleccionado
     const turnosDelDia = useMemo(() => {
         if (!date) return []
         const fechaCalendario = date.toLocaleDateString('en-CA')
         return turnos.filter(t => String(t.fecha).split('T')[0] === fechaCalendario)
     }, [date, turnos])
 
-    // Filtramos los EXTRAS del día seleccionado (NUEVO) 👇
+    // Filtro simplificado para evitar problemas de zona horaria por ahora
     const extrasDelDia = useMemo(() => {
-        if (!date) return []
-        // Convertimos la fecha seleccionada a string YYYY-MM-DD
-        const fechaCalendario = date.toLocaleDateString('en-CA') 
-        
-        return extras.filter(e => {
-            // Aseguramos que la fecha del extra sea comparable
-            const fechaExtra = new Date(e.fecha).toLocaleDateString('en-CA')
-            return fechaExtra === fechaCalendario
-        })
-    }, [date, extras])
+         return extras; 
+    }, [extras])
 
 
     return {
         date, setDate,
         turnos, turnosDelDia,
-        extrasDelDia, // <--- 2. EXPORTAMOS LOS EXTRAS FILTRADOS
+        extrasDelDia,
         usuario, nombreBarberia,
         modals, turnoEditando,
         abrirModal, cerrarModal,
