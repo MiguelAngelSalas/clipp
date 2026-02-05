@@ -7,7 +7,7 @@ import { Resend } from 'resend';
 // Inicializamos Resend con la Key de tu .env
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// --- 1. FUNCIÓN HELPER PARA CREAR SLUGS (NUEVA) ---
+// --- 1. FUNCIÓN HELPER PARA CREAR SLUGS ---
 function generarSlug(nombre: string) {
   return nombre
     .toLowerCase()             // A minúsculas
@@ -21,9 +21,22 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    if (!data.nombre || !data.email || !data.password) {
+    // --- 0. EL PATOVICA DIGITAL (VALIDACIÓN DE EMAIL) 👮‍♂️🛑 ---
+    // Si el email no tiene formato real (algo@dominio.com), lo rebotamos acá.
+    // Esto ahorra plata y espacio en la base de datos.
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    if (!data.email || !emailRegex.test(data.email)) {
       return NextResponse.json(
-        { message: "Faltan datos: nombre, email o contraseña" },
+        { message: "El email ingresado no es válido. Revisalo por favor." },
+        { status: 400 }
+      );
+    }
+    // -----------------------------------------------------------
+
+    if (!data.nombre || !data.password) {
+      return NextResponse.json(
+        { message: "Faltan datos: nombre o contraseña" },
         { status: 400 }
       );
     }
@@ -47,9 +60,6 @@ export async function POST(request: Request) {
       slugFinal = `comercio-${crypto.randomBytes(4).toString('hex')}`;
     }
 
-    // Opcional: Agregar un código random al final para evitar duplicados si hay dos "Barbería Migue"
-    // Por ahora lo dejamos limpio. Si choca, Prisma tirará error y lo arreglamos después.
-
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
@@ -57,7 +67,7 @@ export async function POST(request: Request) {
     const nuevoComercio = await prisma.comercios.create({
       data: {
         nombre_empresa: data.nombre,
-        slug: slugFinal, // <--- ¡ACÁ ESTÁ LA MAGIA! ✨
+        slug: slugFinal,
         email_unico: data.email,
         contrasena: hashedPassword,
         verificationToken: verificationToken,
@@ -65,7 +75,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Construimos el link (Acá te dejé la versión a prueba de balas por si falla la variable)
+    // Construimos el link
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clipp.com.ar";
     const linkVerificacion = `${baseUrl}/verify-email?token=${verificationToken}`;
 
@@ -76,7 +86,6 @@ export async function POST(request: Request) {
       await resend.emails.send({
         from: 'Clipp <notificaciones@clipp.com.ar>', 
         to: data.email,
-        // Agregamos reply_to por si responden
         replyTo: 'clippverificacion@gmail.com', 
         subject: '¡Bienvenido a Clipp! Verificá tu cuenta',
         html: `
@@ -104,7 +113,7 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error("Error registrando usuario:", error);
-    // Si el error es por slug duplicado (código P2002 de Prisma), avisamos
+    // Si el error es por slug duplicado (código P2002 de Prisma)
     if ((error as any).code === 'P2002') {
          return NextResponse.json(
         { message: "Ya existe un comercio con ese nombre/slug o email." },
