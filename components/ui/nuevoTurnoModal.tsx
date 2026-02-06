@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-// 1. IMPORTAMOS EL SELECT Y EL ÍCONO DE PLATA 👇
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Phone, User, DollarSign } from "lucide-react" 
 import { cn } from "@/lib/utils"
@@ -15,7 +14,10 @@ interface NuevoTurnoModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   date: Date | undefined
-  turnosDelDia: any[]
+  
+  // 👇 ACÁ ESTABA EL ERROR: Le cambié el nombre a 'turnos' para que coincida
+  turnos: any[] 
+  
   turnoAEditar?: any 
   onGuardar: (datos: any) => Promise<void>
   usuario: any 
@@ -28,7 +30,6 @@ export function NuevoTurnoModal(props: NuevoTurnoModalProps) {
     telefono, setTelefono,
     servicio, setServicio,
     monto, setMonto,
-    // 2. CONECTAMOS EL ESTADO NUEVO DEL HOOK 👇
     metodoPago, setMetodoPago, 
     loading, buscandoCliente,
     horariosDinamicos,
@@ -102,14 +103,14 @@ export function NuevoTurnoModal(props: NuevoTurnoModalProps) {
                         </div>
                     </div>
 
-                    {/* FILA 2: SERVICIO (Ahora ocupa todo el ancho) */}
+                    {/* FILA 2: SERVICIO */}
                     <Input 
                         placeholder="Servicio (ej: Corte y Barba)" 
                         value={servicio} onChange={(e) => setServicio(e.target.value)} 
                         className="bg-white border-migue/20 w-full" 
                     />
 
-                    {/* FILA 3: PRECIO Y MÉTODO DE PAGO (Nuevo diseño) */}
+                    {/* FILA 3: PRECIO Y MÉTODO DE PAGO */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="relative">
                             <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-[#5a7a56]" />
@@ -121,7 +122,6 @@ export function NuevoTurnoModal(props: NuevoTurnoModalProps) {
                             />
                         </div>
 
-                        {/* 3. ACÁ ESTÁ EL SELECTOR NUEVO 👇 */}
                         <Select value={metodoPago} onValueChange={setMetodoPago}>
                             <SelectTrigger className="bg-white border-migue/20 text-migue-gris font-medium focus:ring-[#7A9A75]">
                                 <SelectValue />
