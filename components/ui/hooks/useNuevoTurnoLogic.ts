@@ -4,13 +4,17 @@ interface UseNuevoTurnoProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     date: Date | undefined
-    turnosDelDia: any[]
+    
+    // 1. CAMBIO AQUÍ 👇 (Antes decía turnosDelDia)
+    turnos: any[]
+    
     turnoAEditar?: any
     onGuardar: (datos: any) => Promise<void>
     usuario: any
 }
 
-export function useNuevoTurnoLogic({ open, onOpenChange, date, turnosDelDia, turnoAEditar, onGuardar, usuario }: UseNuevoTurnoProps) {
+// 2. CAMBIO AQUÍ EN LOS ARGUMENTOS 👇
+export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEditar, onGuardar, usuario }: UseNuevoTurnoProps) {
     // --- ESTADOS ---
     const [hora, setHora] = useState<string | null>(null)
     const [cliente, setCliente] = useState("")
@@ -18,7 +22,7 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnosDelDia, tur
     const [servicio, setServicio] = useState("")
     const [monto, setMonto] = useState("")
     
-    // 1. NUEVO ESTADO AGREGADO 👇
+    // NUEVO ESTADO AGREGADO
     const [metodoPago, setMetodoPago] = useState("EFECTIVO") 
 
     const [loading, setLoading] = useState(false)
@@ -58,12 +62,12 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnosDelDia, tur
                 setServicio(turnoAEditar.servicio || "")
                 setMonto(turnoAEditar.monto ? turnoAEditar.monto.toString() : "")
                 
-                // 2. CARGAMOS EL MÉTODO SI EXISTE 👇
+                // CARGAMOS EL MÉTODO SI EXISTE
                 setMetodoPago(turnoAEditar.metodo_pago || "EFECTIVO")
             } else {
                 // Resetear form
                 setHora(null); setCliente(""); setTelefono(""); setServicio(""); setMonto("")
-                // 3. RESETEAMOS A EFECTIVO POR DEFECTO 👇
+                // RESETEAMOS A EFECTIVO POR DEFECTO
                 setMetodoPago("EFECTIVO")
             }
         }
@@ -108,8 +112,7 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnosDelDia, tur
             servicio: servicio,
             monto: monto ? parseFloat(monto) : 0,
             
-            // 4. MANDAMOS EL DATO AL GUARDAR 👇
-            // Mapeamos para que coincida con lo que espera la API
+            // MANDAMOS EL DATO AL GUARDAR
             metodoPago: metodoPago === "EFECTIVO" ? "EFECTIVO" : "DIGITAL"
         }
 
@@ -119,7 +122,8 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnosDelDia, tur
     }
 
     const estaOcupado = (h: string) => {
-        return turnosDelDia.some(t => {
+        // 3. CAMBIO AQUÍ EN EL USO 👇 (Usamos 'turnos' en vez de 'turnosDelDia')
+        return turnos.some(t => {
             if (turnoAEditar && t.id_turno === turnoAEditar.id_turno) return false
             try {
                 const d = new Date(t.hora)
@@ -136,7 +140,7 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnosDelDia, tur
         telefono, setTelefono,
         servicio, setServicio,
         monto, setMonto,
-        // 5. EXPORTAMOS LOS ESTADOS NUEVOS 👇
+        // EXPORTAMOS LOS ESTADOS NUEVOS
         metodoPago, setMetodoPago,
         
         // UI States
