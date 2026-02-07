@@ -19,7 +19,6 @@ export function useGuestBooking(idComercio: number) {
     const fetchData = async () => {
       if (!idComercio) return
       try {
-        // Hacemos los dos fetch en paralelo para ser más rápidos
         const [resTurnos, resComercio] = await Promise.all([
             fetch(`/api/turnos?id_comercio=${idComercio}`),
             fetch(`/api/usuarios/publico?id_comercio=${idComercio}`)
@@ -33,7 +32,7 @@ export function useGuestBooking(idComercio: number) {
     fetchData()
   }, [idComercio])
 
-  // 2. Calcular Slots (Matemática pura)
+  // 2. Calcular Slots
   const horariosPosibles = useMemo(() => {
     if (!comercio) return []
     const slots = []
@@ -55,36 +54,50 @@ export function useGuestBooking(idComercio: number) {
     return slots
   }, [comercio])
 
-  // 3. Filtrar Ocupados
+  // 3. Filtrar Ocupados (ARREGLADO)
   const getHorariosLibres = (fecha: Date | undefined) => {
     if (!fecha) return []
     const fechaStr = fecha.toISOString().split('T')[0]
     
     const ocupados = turnosOcupados
       .filter(t => {
+        // Obtenemos la fecha del turno en formato YYYY-MM-DD
         const tStr = new Date(t.fecha).toISOString().split('T')[0]
         return tStr === fechaStr && t.estado !== 'cancelado'
       })
       .map(t => {
         const d = new Date(t.hora)
-        return `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`
+        // 🛠️ CAMBIO CLAVE 1: Usamos getHours() (Hora Local)
+        // Esto hace que las 22:30 de la DB se lean como 19:30
+        return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
       })
       
     return horariosPosibles.filter(h => !ocupados.includes(h))
   }
 
-  // 4. Enviar Reserva
+  // 4. Enviar Reserva (ARREGLADO)
   const reservarTurno = async () => {
     if (!date || !selectedTime || !nombre || !telefono) return false
     setSubmitting(true)
+    
+    // 🛠️ CAMBIO CLAVE 2: Creamos un objeto Date REAL
+    const [h, m] = selectedTime.split(':').map(Number)
+    const fechaCompleta = new Date(date)
+    fechaCompleta.setHours(h, m, 0, 0) 
+    // Ahora 'fechaCompleta' es 19:30 en tu compu, pero 22:30 UTC.
+    // Al enviarla, Prisma guardará 22:30 UTC.
+
     try {
       const res = await fetch('/api/turnos', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           id_comercio: idComercio,
-          fecha: formatDateLocal(date), // Asumo que tenés esta utilidad
-          hora: selectedTime,
+          
+          // Enviamos el objeto fecha completo en ambos campos
+          fecha: fechaCompleta, 
+          hora: fechaCompleta,  
+          
           nombre_invitado: nombre,
           contacto_invitado: telefono,
           servicio: "Corte de Pelo", 
