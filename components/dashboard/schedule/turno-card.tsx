@@ -3,7 +3,9 @@
 import { Button } from "@/components/ui/button"
 import { Scissors, CheckCircle2, XCircle, DollarSign, Pencil, UserCheck } from "lucide-react"
 
-// 1. IMPORTAMOS EL ALERT DIALOG 👇
+// 1. IMPORTAMOS LA FUNCIÓN DE TU LIB 👇
+import { formatTimeDisplay } from "@/lib/date-utils"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,17 +40,7 @@ interface TurnoCardProps {
 
 export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardProps) {
 
-  // Helpers internos de visualización
-  const formatearHora = (fechaISO: string) => {
-    try {
-      const date = new Date(fechaISO);
-      const horas = date.getUTCHours().toString().padStart(2, '0');
-      const minutos = date.getUTCMinutes().toString().padStart(2, '0');
-      return `${horas}:${minutos}`;
-    } catch (e) { 
-      return "--:--"; 
-    }
-  }
+  // (Borramos la función 'formatearHora' que estaba acá porque ya no hace falta)
 
   // --- SOLUCIÓN AL NOMBRE PISADO ---
   const nombreParaMostrar = turno.nombre_invitado || turno.clientes?.nombre_cliente || "Cliente Anónimo";
@@ -63,7 +55,8 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
       {/* IZQUIERDA: HORA Y DATOS */}
       <div className="flex items-center gap-4">
         <div className={`${THEME.accentGreen} min-w-[64px] py-3 rounded-md text-center text-sm font-bold shadow-sm`}>
-          {formatearHora(turno.hora)}
+          {/* 2. USAMOS LA FUNCIÓN IMPORTADA ACÁ 👇 */}
+          {formatTimeDisplay(turno.hora)}
         </div>
         
         <div>
@@ -109,13 +102,11 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
               <Pencil className="w-5 h-5" />
             </Button>
 
-            {/* 👇 ACÁ CAMBIAMOS EL BOTÓN POR EL ALERT DIALOG 👇 */}
             <AlertDialog>
                 <AlertDialogTrigger asChild>
                     <Button 
                         variant="ghost" size="icon" title="Cancelar Turno"
                         className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                        // NOTA: Sacamos el onClick de acá para que no dispare directo
                     >
                         <XCircle className="w-5 h-5" />
                     </Button>
@@ -129,7 +120,6 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Volver</AlertDialogCancel>
-                        {/* El botón de acción real está acá 👇 */}
                         <AlertDialogAction 
                             className="bg-red-600 hover:bg-red-700 text-white border-none"
                             onClick={() => onCancel(turno.id_turno)}
@@ -139,7 +129,6 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-            {/* 👆 FIN DEL CAMBIO 👆 */}
 
             <Button 
               size="sm" 
