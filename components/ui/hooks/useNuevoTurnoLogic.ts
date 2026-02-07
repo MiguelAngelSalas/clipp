@@ -4,16 +4,12 @@ interface UseNuevoTurnoProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     date: Date | undefined
-    
-    // 1. CAMBIO AQUÍ 👇 (Antes decía turnosDelDia)
     turnos: any[]
-    
     turnoAEditar?: any
     onGuardar: (datos: any) => Promise<void>
     usuario: any
 }
 
-// 2. CAMBIO AQUÍ EN LOS ARGUMENTOS 👇
 export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEditar, onGuardar, usuario }: UseNuevoTurnoProps) {
     // --- ESTADOS ---
     const [hora, setHora] = useState<string | null>(null)
@@ -21,14 +17,12 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
     const [telefono, setTelefono] = useState("")
     const [servicio, setServicio] = useState("")
     const [monto, setMonto] = useState("")
-    
-    // NUEVO ESTADO AGREGADO
     const [metodoPago, setMetodoPago] = useState("EFECTIVO") 
 
     const [loading, setLoading] = useState(false)
     const [buscandoCliente, setBuscandoCliente] = useState(false)
 
-    // --- 1. GENERAR HORARIOS (Matemática Pura) ---
+    // --- 1. GENERAR HORARIOS ---
     const horariosDinamicos = useMemo(() => {
         if (!usuario) return []
         const slots = []
@@ -56,24 +50,25 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
         if (open) { 
             if (turnoAEditar) {
                 const d = new Date(turnoAEditar.hora)
-                setHora(`${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`)
+                
+                // 🛠️ CORRECCIÓN 1: Usamos getHours (Local)
+                const h = d.getHours().toString().padStart(2, '0')
+                const m = d.getMinutes().toString().padStart(2, '0')
+                
+                setHora(`${h}:${m}`)
                 setCliente(turnoAEditar.clientes?.nombre_cliente || turnoAEditar.nombre_invitado || "")
                 setTelefono(turnoAEditar.contacto_invitado || "")
                 setServicio(turnoAEditar.servicio || "")
                 setMonto(turnoAEditar.monto ? turnoAEditar.monto.toString() : "")
-                
-                // CARGAMOS EL MÉTODO SI EXISTE
                 setMetodoPago(turnoAEditar.metodo_pago || "EFECTIVO")
             } else {
-                // Resetear form
                 setHora(null); setCliente(""); setTelefono(""); setServicio(""); setMonto("")
-                // RESETEAMOS A EFECTIVO POR DEFECTO
                 setMetodoPago("EFECTIVO")
             }
         }
     }, [open, turnoAEditar])
 
-    // --- 3. AUTOCOMPLETAR WHATSAPP (La Magia) ---
+    // --- 3. AUTOCOMPLETAR WHATSAPP ---
     useEffect(() => {
         const buscarCliente = async () => {
             if (telefono.length >= 10 && !turnoAEditar) {
@@ -102,7 +97,7 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
         
         const [h, m] = hora.split(':').map(Number)
         const fechaHoraFinal = new Date(date)
-        fechaHoraFinal.setHours(h, m, 0, 0)
+        fechaHoraFinal.setHours(h, m, 0, 0) // Esto usa tu hora local, ¡está perfecto!
 
         const datos = {
             id_turno: turnoAEditar?.id_turno, 
@@ -111,8 +106,6 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
             contacto_invitado: telefono || null,
             servicio: servicio,
             monto: monto ? parseFloat(monto) : 0,
-            
-            // MANDAMOS EL DATO AL GUARDAR
             metodoPago: metodoPago === "EFECTIVO" ? "EFECTIVO" : "DIGITAL"
         }
 
@@ -122,32 +115,28 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
     }
 
     const estaOcupado = (h: string) => {
-        // 3. CAMBIO AQUÍ EN EL USO 👇 (Usamos 'turnos' en vez de 'turnosDelDia')
         return turnos.some(t => {
             if (turnoAEditar && t.id_turno === turnoAEditar.id_turno) return false
             try {
                 const d = new Date(t.hora)
-                const horaTurno = `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`
+                
+                // 🛠️ CORRECCIÓN 2: Comparamos con hora Local
+                const horaTurno = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+                
                 return horaTurno === h
             } catch { return false }
         })
     }
 
     return {
-        // Datos Form
         hora, setHora,
         cliente, setCliente,
         telefono, setTelefono,
         servicio, setServicio,
         monto, setMonto,
-        // EXPORTAMOS LOS ESTADOS NUEVOS
         metodoPago, setMetodoPago,
-        
-        // UI States
         loading, buscandoCliente,
-        // Computed
         horariosDinamicos,
-        // Actions
         handleGuardar, estaOcupado
     }
 }
