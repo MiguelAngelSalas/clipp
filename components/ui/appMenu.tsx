@@ -15,22 +15,25 @@ import {
   CreditCard, 
   Settings, 
   LogOut, 
-  PlusCircle
+  PlusCircle,
+  Share2 // 1. IMPORTAMOS EL ÍCONO NUEVO 👈
 } from "lucide-react"
 
 // Propiedades del componente
 interface AppMenuProps {
   onNuevoTurnoClick?: () => void
-  onRegistrarCobroClick?: () => void // <-- 1. AGREGAMOS ESTA PROP
+  onRegistrarCobroClick?: () => void 
   onConfigClick?: () => void 
   onLogoutClick?: () => void 
+  onShareClick?: () => void // 2. AGREGAMOS ESTA PROP NUEVA 👈
 }
 
 export default function AppMenu({ 
   onNuevoTurnoClick, 
-  onRegistrarCobroClick, // <-- 2. LA RECIBIMOS ACÁ
+  onRegistrarCobroClick,
   onConfigClick, 
-  onLogoutClick 
+  onLogoutClick,
+  onShareClick // 2b. LA RECIBIMOS ACÁ
 }: AppMenuProps) {
   
   const estiloMenu = "bg-white border border-migue shadow-lg min-w-[200px]"
@@ -40,7 +43,7 @@ export default function AppMenu({
   return (
     <Menubar className="rounded-md border-none bg-transparent shadow-none">
       
-      {/* MENÚ AGENDA */}
+      {/* MENÚ AGENDA (Igual que antes) */}
       <MenubarMenu>
         <MenubarTrigger className="font-bold text-migue-gris cursor-pointer hover:bg-migue-beige rounded px-3 py-1 transition-colors data-[state=open]:bg-migue-beige">
             Agenda
@@ -59,13 +62,12 @@ export default function AppMenu({
         </MenubarContent>
       </MenubarMenu>
 
-      {/* MENÚ CAJA */}
+      {/* MENÚ CAJA (Igual que antes) */}
       <MenubarMenu>
         <MenubarTrigger className="cursor-pointer text-migue-gris hover:bg-migue-beige rounded px-3 py-1 transition-colors data-[state=open]:bg-migue-beige">
             Caja
         </MenubarTrigger>
         <MenubarContent className={estiloMenu}>
-          {/* 3. CONECTAMOS EL CLIC AL BOTÓN */}
           <MenubarItem onClick={onRegistrarCobroClick} className={estiloItem}>
               <CreditCard className="mr-2 h-4 w-4 opacity-70" /> Registrar Cobro
           </MenubarItem>
@@ -76,12 +78,20 @@ export default function AppMenu({
         </MenubarContent>
       </MenubarMenu>
 
-      {/* MENÚ CUENTA */}
+      {/* MENÚ MI NEGOCIO */}
       <MenubarMenu>
         <MenubarTrigger className="cursor-pointer text-migue-gris hover:bg-migue-beige rounded px-3 py-1 transition-colors data-[state=open]:bg-migue-beige">
             Mi Negocio
         </MenubarTrigger>
         <MenubarContent className={estiloMenu}>
+          
+          {/* 3. ACÁ AGREGAMOS LA OPCIÓN DE COMPARTIR 👇 */}
+          <MenubarItem className={estiloItem} onClick={onShareClick}>
+              <Share2 className="mr-2 h-4 w-4 text-blue-500" /> Compartir Link
+          </MenubarItem>
+          
+          <MenubarSeparator className="bg-migue-gris/20" />
+
           <MenubarItem className={estiloItem} onClick={onConfigClick}>
               <Settings className="mr-2 h-4 w-4 opacity-70" /> Configuración
           </MenubarItem>
