@@ -75,17 +75,21 @@ export function useGuestBooking(idComercio: number) {
     return horariosPosibles.filter(h => !ocupados.includes(h))
   }
 
-  // 4. Enviar Reserva (ARREGLADO)
+  // 4. Enviar Reserva (FIX FINAL PARA ZONA HORARIA)
   const reservarTurno = async () => {
     if (!date || !selectedTime || !nombre || !telefono) return false
     setSubmitting(true)
     
-    // 🛠️ CAMBIO CLAVE 2: Creamos un objeto Date REAL
+    // 1. Armamos la fecha local tal cual la eligió el usuario (ej: 19:30)
     const [h, m] = selectedTime.split(':').map(Number)
-    const fechaCompleta = new Date(date)
-    fechaCompleta.setHours(h, m, 0, 0) 
-    // Ahora 'fechaCompleta' es 19:30 en tu compu, pero 22:30 UTC.
-    // Al enviarla, Prisma guardará 22:30 UTC.
+    const fechaLocal = new Date(date)
+    fechaLocal.setHours(h, m, 0, 0) 
+    
+    // 2. Extraemos la hora UTC real (ej: si es 19:30 AR, acá saca 22:30)
+    // Esto es lo que le vamos a mandar a la API para que guarde bien
+    const utcH = fechaLocal.getUTCHours().toString().padStart(2, '0')
+    const utcM = fechaLocal.getUTCMinutes().toString().padStart(2, '0')
+    const horaParaEnviar = `${utcH}:${utcM}`
 
     try {
       const res = await fetch('/api/turnos', {
@@ -94,9 +98,8 @@ export function useGuestBooking(idComercio: number) {
         body: JSON.stringify({
           id_comercio: idComercio,
           
-          // Enviamos el objeto fecha completo en ambos campos
-          fecha: fechaCompleta, 
-          hora: fechaCompleta,  
+          fecha: formatDateLocal(date), // Mantenemos el formato string YYYY-MM-DD
+          hora: horaParaEnviar,         // Mandamos la hora convertida a UTC ("22:30")
           
           nombre_invitado: nombre,
           contacto_invitado: telefono,
