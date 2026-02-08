@@ -13,36 +13,27 @@ export async function GET(request: Request) {
     }
 
     // ============================================================
-    // 🧹 EL BARRENDERO (Versión Final: Fix @db.Date)
+    // 🧹 EL BARRENDERO
     // ============================================================
-    
-    // 1. Obtenemos la fecha de HOY en Argentina (formato YYYY-MM-DD)
     const fechaStringArg = new Date().toLocaleDateString('en-CA', { 
         timeZone: 'America/Argentina/Buenos_Aires' 
     });
 
-    // 2. Construimos el "Punto de Corte" en 00:00 UTC (Medianoche exacta)
-    // Al usar T00:00:00.000Z evitamos que la base de datos (que guarda @db.Date como 00:00)
-    // nos cancele los turnos de hoy.
-    // Lógica: 
-    // - Turno HOY (00:00) < CORTE (00:00) -> FALSE (Se queda vivo ✅)
-    // - Turno AYER (00:00) < CORTE (00:00) -> TRUE (Se cancela 🗑️)
     const puntoDeCorteISO = `${fechaStringArg}T00:00:00.000Z`;
     const inicioDelDia = new Date(puntoDeCorteISO);
 
-    console.log("🧹 Barriendo turnos anteriores a:", inicioDelDia.toISOString());
+    // console.log("🧹 Barriendo turnos anteriores a:", inicioDelDia.toISOString());
 
     await prisma.turnos.updateMany({
       where: {
         id_comercio: Number(idComercio),
-        fecha: { lt: inicioDelDia }, // Estrictamente menor
+        fecha: { lt: inicioDelDia }, 
         estado: "pendiente"
       },
       data: { estado: "cancelado" }
     });
     // ============================================================
 
-    // 3. Devolvemos la agenda limpia
     const turnos = await prisma.turnos.findMany({
       where: { id_comercio: Number(idComercio) },
       orderBy: { fecha: 'asc' },
@@ -64,7 +55,6 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         
-        // Fix de compatibilidad de nombre
         const idComercioRecibido = body.id_comercio || body.idComercio;
 
         if (!idComercioRecibido) {
@@ -74,7 +64,6 @@ export async function POST(request: Request) {
         const { nombre_invitado, contacto_invitado, fecha, metodoPago, ...restoDelTurno } = body;
         let horaFinalRecibida = body.hora;
 
-        // Limpieza de hora si viene con formato largo
         if (horaFinalRecibida && horaFinalRecibida.includes('T')) {
             horaFinalRecibida = horaFinalRecibida.split('T')[1].substring(0, 5);
         }
@@ -83,8 +72,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: "La fecha y la hora son obligatorias" }, { status: 400 });
         }
 
-        // Forzamos fecha al mediodía UTC para evitar saltos de día
-        // Aunque @db.Date lo guarde como 00:00, esto asegura que Prisma mande el día correcto.
         const fechaFinal = new Date(`${fecha}T12:00:00Z`);
         const horaFinal = new Date(`${fecha}T${horaFinalRecibida}:00`);
 
@@ -94,7 +81,7 @@ export async function POST(request: Request) {
 
         let idClienteFinal = body.id_cliente; 
         
-        // --- Gestión del Cliente (Upsert manual) ---
+        // --- Gestión del Cliente ---
         if (!idClienteFinal && contacto_invitado && idComercioRecibido) {
             const clienteExistente = await prisma.clientes.findFirst({
                 where: { 
@@ -121,7 +108,6 @@ export async function POST(request: Request) {
             }
         }
 
-        // --- Crear el Turno en DB ---
         const nuevoTurno = await prisma.turnos.create({
             data: {
                 id_comercio: Number(idComercioRecibido),
@@ -135,9 +121,7 @@ export async function POST(request: Request) {
             }
         });
 
-        // ============================================================
-        // 🚀 DISPARAR WHATSAPP (No bloqueante)
-        // ============================================================
+        // --- WhatsApp ---
         try {
             if (contacto_invitado) {
                 const fechaLinda = new Date(fechaFinal).toLocaleDateString("es-AR", { day: 'numeric', month: 'long' }) + 
@@ -157,15 +141,12 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error("Error creando turno:", error);
-
-        // --- MANEJO DE ERROR DE DUPLICADOS (P2002) ---
         if (error.code === 'P2002') {
             return NextResponse.json(
                 { message: "Ya existe un turno reservado en ese horario." }, 
                 { status: 409 }
             );
         }
-
         return NextResponse.json({ message: "Error al crear turno" }, { status: 500 });
     }
 }
@@ -174,9 +155,14 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
+        
+        // 🔥 LOGUEAMOS QUÉ LLEGA PARA VER EL ERROR 🔥
+        console.log("📦 PUT RECIBIDO (Datos Crudos):", body);
+        
         const { id_turno, estado, monto, servicio, hora, nombre_invitado, contacto_invitado, fecha, metodoPago } = body;
 
         if (!id_turno) {
+            console.error("❌ Error: Falta id_turno en el body");
             return NextResponse.json({ message: "Falta el ID del turno" }, { status: 400 });
         }
 
@@ -191,17 +177,20 @@ export async function PUT(request: Request) {
 
         // Reconstrucción de Fechas/Horas si cambiaron
         let horaLimpia = hora;
-        if (horaLimpia && horaLimpia.includes('T')) {
+        if (horaLimpia && typeof horaLimpia === 'string' && horaLimpia.includes('T')) {
             horaLimpia = horaLimpia.split('T')[1].substring(0, 5);
         }
 
+        // Si mandan hora y fecha, recalculamos los objetos Date
         if (horaLimpia && fecha) {
              const h = new Date(`${fecha}T${horaLimpia}:00`);
-             const f = new Date(`${fecha}T12:00:00Z`); // Mismo truco del mediodía UTC
+             const f = new Date(`${fecha}T12:00:00Z`);
              
              if (!isNaN(h.getTime())) datosAActualizar.hora = h;
              if (!isNaN(f.getTime())) datosAActualizar.fecha = f;
         }
+
+        console.log("✅ Datos que vamos a mandar a Prisma:", datosAActualizar);
 
         const turnoActualizado = await prisma.turnos.update({
             where: { id_turno: Number(id_turno) },
