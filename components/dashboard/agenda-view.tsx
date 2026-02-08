@@ -61,6 +61,7 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
                     </div>
                     <div className="md:col-span-8">
                         <ScheduleList 
+                            date={date}
                             turnosDelDia={turnosDelDia} 
                             onAddExtra={() => abrirModal('nuevoTurno')}
                             onTurnoUpdated={cargarTurnos}
