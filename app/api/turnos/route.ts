@@ -151,23 +151,23 @@ export async function POST(request: Request) {
     }
 }
 
-// 3. PUT: Actualizar turno 🔄
+// 3. PUT: Actualizar turno (CON EL FIX DE FECHA 🩹) 🔄
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
         
-        // 🔥 LOGUEAMOS QUÉ LLEGA PARA VER EL ERROR 🔥
-        console.log("📦 PUT RECIBIDO (Datos Crudos):", body);
+        console.log("📦 PUT RECIBIDO:", body);
         
-        const { id_turno, estado, monto, servicio, hora, nombre_invitado, contacto_invitado, fecha, metodoPago } = body;
+        // Usamos 'let' para poder rellenar la fecha si falta
+        let { id_turno, estado, monto, servicio, hora, nombre_invitado, contacto_invitado, fecha, metodoPago } = body;
 
         if (!id_turno) {
-            console.error("❌ Error: Falta id_turno en el body");
             return NextResponse.json({ message: "Falta el ID del turno" }, { status: 400 });
         }
 
         const datosAActualizar: any = {};
 
+        // Actualizamos campos simples
         if (estado) datosAActualizar.estado = estado;
         if (monto !== undefined && monto !== "") datosAActualizar.monto = Number(monto);
         if (servicio) datosAActualizar.servicio = servicio;
@@ -175,16 +175,22 @@ export async function PUT(request: Request) {
         if (contacto_invitado !== undefined) datosAActualizar.contacto_invitado = contacto_invitado;
         if (metodoPago) datosAActualizar.metodo_pago = metodoPago;
 
-        // Reconstrucción de Fechas/Horas si cambiaron
-        let horaLimpia = hora;
-        if (horaLimpia && typeof horaLimpia === 'string' && horaLimpia.includes('T')) {
-            horaLimpia = horaLimpia.split('T')[1].substring(0, 5);
+        // --- FIX: SI FALTA FECHA PERO TENEMOS HORA ISO ---
+        // Si el body trae "hora": "2026-02-22T14:30..." pero "fecha": undefined
+        if (!fecha && hora && typeof hora === 'string' && hora.includes('T')) {
+            fecha = hora.split('T')[0]; // "2026-02-22" (Robamos la fecha del string ISO)
         }
 
-        // Si mandan hora y fecha, recalculamos los objetos Date
+        // Limpiamos la hora para que quede "HH:mm"
+        let horaLimpia = hora;
+        if (horaLimpia && typeof horaLimpia === 'string' && horaLimpia.includes('T')) {
+            horaLimpia = horaLimpia.split('T')[1].substring(0, 5); // "14:30"
+        }
+
+        // Ahora sí, si tenemos las dos cosas (una vino o la calculamos), actualizamos
         if (horaLimpia && fecha) {
              const h = new Date(`${fecha}T${horaLimpia}:00`);
-             const f = new Date(`${fecha}T12:00:00Z`);
+             const f = new Date(`${fecha}T12:00:00Z`); // Truco del mediodía
              
              if (!isNaN(h.getTime())) datosAActualizar.hora = h;
              if (!isNaN(f.getTime())) datosAActualizar.fecha = f;
