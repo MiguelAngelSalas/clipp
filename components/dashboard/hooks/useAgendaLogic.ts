@@ -24,26 +24,33 @@ export function useAgendaLogic(usuario: any) {
 
     // --- 1. CARGA DE DATOS ---
     const cargarDatos = useCallback(async () => {
-        if (!idComercio) return
+        if (!idComercio || !date) return
         setLoading(true)
+        
         try {
             // A. Traemos los TURNOS
             const resTurnos = await fetch(`/api/turnos?id_comercio=${idComercio}`)
             if (resTurnos.ok) setTurnos(await resTurnos.json())
 
-            // B. Traemos los EXTRAS (CORREGIDO AQUI 🚨)
-            // Apuntamos a la ruta real que creamos: /api/caja/registrar
-            const resExtras = await fetch(`/api/caja/registrar?id_comercio=${idComercio}`)
+            // B. Traemos los EXTRAS (CORREGIDO ✅)
+            // 1. Convertimos la fecha del calendario a string "YYYY-MM-DD"
+            const fechaString = date.toLocaleDateString('en-CA');
+            
+            // 2. Llamamos a la API enviando la fecha para que filtre bien
+            // NOTA: Apuntamos a /api/caja, que es donde pusimos el GET con filtro
+            const resExtras = await fetch(`/api/caja?id_comercio=${idComercio}&fecha=${fechaString}`)
+            
             if (resExtras.ok) {
                 const dataExtras = await resExtras.json()
-                console.log("💰 Extras cargados:", dataExtras) 
+                console.log(`💰 Extras del día ${fechaString}:`, dataExtras) 
                 setExtras(dataExtras)
             }
 
         } catch (e) { console.error(e) } 
         finally { setLoading(false) }
-    }, [idComercio])
+    }, [idComercio, date]) // <--- IMPORTANTE: 'date' está aquí para recargar al cambiar de día
 
+    // Se ejecuta al inicio y cada vez que cambia 'cargarDatos' (o sea, cuando cambia 'date')
     useEffect(() => { cargarDatos() }, [cargarDatos])
 
     // --- 2. LÓGICA DE PERMISOS ---
@@ -90,14 +97,14 @@ export function useAgendaLogic(usuario: any) {
         } catch (e) { toast.error("Error de conexión", { id: toastId }); }
     }
 
-    // B. Registrar Cobro (CORREGIDO AQUI TAMBIEN 🚨)
+    // B. Registrar Cobro (CORREGIDO ✅)
     const registrarCobro = async (datos: any) => {
         if (!idComercio) return
         const toastId = toast.loading("Registrando en caja...");
 
         try {
-            // Apuntamos a la ruta real: /api/caja/registrar
-            const res = await fetch('/api/caja/registrar', {
+            // Apuntamos a /api/caja (POST) que es el archivo route.ts estándar
+            const res = await fetch('/api/caja', {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...datos, id_comercio: Number(idComercio) })
@@ -145,7 +152,7 @@ export function useAgendaLogic(usuario: any) {
         return turnos.filter(t => String(t.fecha).split('T')[0] === fechaCalendario)
     }, [date, turnos])
 
-    // Filtro simplificado para evitar problemas de zona horaria por ahora
+    // Como la API ya filtra por fecha, esto solo pasa los datos limpios
     const extrasDelDia = useMemo(() => {
          return extras; 
     }, [extras])
