@@ -43,6 +43,8 @@ model comercios {
   // --- CAMPOS PARA RECUPERACIÓN DE CONTRASEÑA ---
   resetToken          String? @unique @db.VarChar(255)
   resetTokenExpiry    DateTime? @db.Timestamp(0)
+
+  telegramChatId String?
   
   created_at          DateTime? @default(now()) @db.Timestamp(0)
   
@@ -78,7 +80,6 @@ model turnos {
 
   @@index([id_cliente], map: "id_cliente")
   @@index([id_comercio], map: "id_comercio")
-  @@unique([id_comercio, fecha, hora], name: "unique_turno_comercio_tiempo")
 }
 
 model movimientos_caja {

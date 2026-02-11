@@ -1,14 +1,15 @@
+"use client"
+
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast } from "sonner" 
 
 export function useAgendaLogic(usuario: any) {
-    // --- ESTADOS DE DATOS ---
+    // --- ESTADOS ---
     const [date, setDate] = useState<Date | undefined>(new Date())
     const [turnos, setTurnos] = useState<any[]>([])
     const [extras, setExtras] = useState<any[]>([]) 
     const [loading, setLoading] = useState(false)
-
-    // --- ESTADOS DE MODALES ---
+    
     const [modals, setModals] = useState({
         nuevoTurno: false,
         resumen: false,
@@ -19,47 +20,41 @@ export function useAgendaLogic(usuario: any) {
 
     // Helpers
     const idComercio = usuario?.id_comercio || usuario?.id
-    const tieneSuscripcion = usuario?.suscrito || true
-    const nombreBarberia = usuario?.nombre_empresa || usuario?.nombre || "Barbería"
+    const tieneSuscripcion = usuario?.suscrito ?? true
+    const nombreBarberia = usuario?.nombre || "Mi Barbería"
 
     // --- 1. CARGA DE DATOS ---
     const cargarDatos = useCallback(async () => {
         if (!idComercio || !date) return
         setLoading(true)
         
+        const fechaString = date.toLocaleDateString('en-CA');
+        
         try {
-            // A. Traemos los TURNOS
-            const resTurnos = await fetch(`/api/turnos?id_comercio=${idComercio}`)
-            if (resTurnos.ok) setTurnos(await resTurnos.json())
+            const [resTurnos, resExtras] = await Promise.all([
+                fetch(`/api/turnos?id_comercio=${idComercio}`),
+                fetch(`/api/caja?id_comercio=${idComercio}&fecha=${fechaString}`)
+            ]);
 
-            // B. Traemos los EXTRAS (CORREGIDO ✅)
-            // 1. Convertimos la fecha del calendario a string "YYYY-MM-DD"
-            const fechaString = date.toLocaleDateString('en-CA');
-            
-            // 2. Llamamos a la API enviando la fecha para que filtre bien
-            // NOTA: Apuntamos a /api/caja, que es donde pusimos el GET con filtro
-            const resExtras = await fetch(`/api/caja?id_comercio=${idComercio}&fecha=${fechaString}`)
-            
-            if (resExtras.ok) {
-                const dataExtras = await resExtras.json()
-                console.log(`💰 Extras del día ${fechaString}:`, dataExtras) 
-                setExtras(dataExtras)
-            }
+            if (resTurnos.ok) setTurnos(await resTurnos.json());
+            if (resExtras.ok) setExtras(await resExtras.json());
 
-        } catch (e) { console.error(e) } 
-        finally { setLoading(false) }
-    }, [idComercio, date]) // <--- IMPORTANTE: 'date' está aquí para recargar al cambiar de día
+        } catch (e) {
+            toast.error("Error al sincronizar datos");
+        } finally {
+            setLoading(false)
+        }
+    }, [idComercio, date])
 
-    // Se ejecuta al inicio y cada vez que cambia 'cargarDatos' (o sea, cuando cambia 'date')
     useEffect(() => { cargarDatos() }, [cargarDatos])
 
-    // --- 2. LÓGICA DE PERMISOS ---
-    const abrirModal = (tipo: 'nuevoTurno' | 'resumen' | 'cobro', turnoData?: any) => {
+    // --- 2. GESTIÓN DE MODALES ---
+    const abrirModal = (tipo: keyof typeof modals, data?: any) => {
         if ((tipo === 'nuevoTurno' || tipo === 'cobro') && !tieneSuscripcion) {
             setModals(prev => ({ ...prev, suscripcion: true }))
             return
         }
-        if (tipo === 'nuevoTurno') setTurnoEditando(turnoData || null)
+        if (tipo === 'nuevoTurno') setTurnoEditando(data || null)
         setModals(prev => ({ ...prev, [tipo]: true }))
     }
 
@@ -69,105 +64,81 @@ export function useAgendaLogic(usuario: any) {
     }
 
     // --- 3. ACCIONES ---
-    
-    // A. Guardar Turno
-    const guardarTurno = async (datos: any) => {
-        if (!date || !idComercio) return
-        const toastId = toast.loading("Guardando...");
-
+    const ejecutarAccion = async (url: string, method: string, body: any, successMsg: string) => {
+        const toastId = toast.loading("Procesando...");
         try {
-            const method = datos.id_turno ? 'PUT' : 'POST'
-            const body: any = { ...datos, id_comercio: Number(idComercio) } 
-            
-            if (method === 'POST') body.fecha = date.toLocaleDateString('en-CA')
-
-            const res = await fetch('/api/turnos', {
-                method, 
+            const res = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
 
             if (res.ok) {
-                toast.success("¡Listo!", { id: toastId });
-                await cargarDatos(); 
-                cerrarModal('nuevoTurno');
-            } else { 
-                toast.error("Error al guardar", { id: toastId });
-            }
-        } catch (e) { toast.error("Error de conexión", { id: toastId }); }
-    }
-
-    // B. Registrar Cobro (CORREGIDO ✅)
-    const registrarCobro = async (datos: any) => {
-        if (!idComercio) return
-        const toastId = toast.loading("Registrando en caja...");
-
-        try {
-            // Apuntamos a /api/caja (POST) que es el archivo route.ts estándar
-            const res = await fetch('/api/caja', {
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...datos, id_comercio: Number(idComercio) })
-            });
-
-            if (res.ok) {
-                toast.success("¡Cobro Registrado!", { id: toastId });
-                cerrarModal('cobro');
-                await cargarDatos(); 
-            } else { 
-                toast.error("Error al cobrar", { id: toastId });
-            }
-        } catch (e) { toast.error("Error de conexión", { id: toastId }); }
-    }
-
-    // C. Finalizar Turno
-    const finalizarTurno = async (idTurno: number, montoFinal: number, metodoPago: string) => {
-        const toastId = toast.loading("Finalizando...");
-        try {
-            const res = await fetch('/api/turnos', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id_turno: idTurno,
-                    estado: 'finalizado',
-                    monto: montoFinal,
-                    metodoPago: metodoPago
-                })
-            });
-
-            if (res.ok) {
-                toast.success("¡Turno Cobrado!", { id: toastId });
+                toast.success(successMsg, { id: toastId });
                 await cargarDatos();
-            } else {
-                toast.error("Error", { id: toastId });
-            }
-        } catch (error) { toast.error("Error de conexión", { id: toastId }); }
+                return true;
+            } 
+            throw new Error();
+        } catch (e) {
+            toast.error("Error en la operación", { id: toastId });
+            return false;
+        }
     }
 
-    // --- 4. DATOS COMPUTADOS ---
-    
+    const guardarTurno = async (datos: any) => {
+        const method = datos.id_turno ? 'PUT' : 'POST';
+        const body = { 
+            ...datos, 
+            id_comercio: Number(idComercio),
+            fecha: method === 'POST' ? date?.toLocaleDateString('en-CA') : datos.fecha 
+        };
+        const ok = await ejecutarAccion('/api/turnos', method, body, "Turno guardado");
+        if (ok) cerrarModal('nuevoTurno');
+    }
+
+    const registrarCobro = async (datos: any) => {
+        const ok = await ejecutarAccion('/api/caja', 'POST', { ...datos, id_comercio: Number(idComercio) }, "Cobro registrado");
+        if (ok) cerrarModal('cobro');
+    }
+
+    const finalizarTurno = async (idTurno: number, montoFinal: number, metodoPago: string) => {
+        await ejecutarAccion('/api/turnos', 'PUT', {
+            id_turno: idTurno,
+            estado: 'finalizado',
+            monto: montoFinal,
+            metodoPago
+        }, "¡Turno finalizado!");
+    }
+
+    // Nueva función para cancelar (la que te pedía AgendaView)
+    const onCancelarTurno = async (idTurno: number) => {
+        await ejecutarAccion('/api/turnos', 'PUT', {
+            id_turno: idTurno,
+            estado: 'cancelado'
+        }, "Turno cancelado");
+    }
+
+    // --- 4. DATA COMPUTADA ---
     const turnosDelDia = useMemo(() => {
         if (!date) return []
-        const fechaCalendario = date.toLocaleDateString('en-CA')
-        return turnos.filter(t => String(t.fecha).split('T')[0] === fechaCalendario)
+        const ISO = date.toLocaleDateString('en-CA')
+        return turnos.filter(t => String(t.fecha).startsWith(ISO))
     }, [date, turnos])
 
-    // Como la API ya filtra por fecha, esto solo pasa los datos limpios
-    const extrasDelDia = useMemo(() => {
-         return extras; 
-    }, [extras])
-
-
+    // --- 5. RETURN (Sincronizado con AgendaView) ---
     return {
         date, setDate,
-        turnos, turnosDelDia,
-        extrasDelDia,
-        usuario, nombreBarberia,
+        turnos,          // <--- Lo agregamos (para el CalendarWidget)
+        turnosDelDia,
+        extrasDelDia: extras,
+        loading,
+        nombreBarberia,
         modals, turnoEditando,
         abrirModal, cerrarModal,
         guardarTurno, 
         registrarCobro, 
-        cargarTurnos: cargarDatos,
-        finalizarTurno
+        finalizarTurno,
+        onCancelarTurno, // <--- Lo agregamos (para el ScheduleList)
+        recargar: cargarDatos
     }
 }

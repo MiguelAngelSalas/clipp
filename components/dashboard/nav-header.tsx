@@ -2,10 +2,9 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import AppMenu from "@/components/ui/appMenu" // Asegurate que la ruta sea correcta
+import AppMenu from "@/components/ui/appMenu"
 import { ArrowLeft } from "lucide-react"
 import { ConfigModal } from "@/components/dashboard/config-modal"
-// Si tenés "sonner" o "react-hot-toast", importalo acá. Si no, usaremos alert()
 
 interface NavHeaderProps {
   onNuevoTurno: () => void
@@ -25,23 +24,24 @@ export function NavHeader({
   
   const [isConfigOpen, setIsConfigOpen] = React.useState(false)
 
-  // 1. LA MAGIA: FUNCIÓN PARA COPIAR EL LINK 📋✨
+  // --- DEBUG PARA EL MATE ---
+  // Si en la consola ves que el ID no aparece, es porque el objeto 'usuario' viene distinto
+  React.useEffect(() => {
+    console.log("Migue, este es tu usuario actual:", usuario);
+  }, [usuario]);
+
+  // Capturamos el ID: probamos con id_comercio, y si no existe, con id
+  const idParaTelegram = usuario?.id_comercio || usuario?.id;
+
   const handleShare = () => {
-    // Chequeamos que el usuario tenga el slug configurado
     const slug = usuario?.slug
     if (!slug) {
         alert("Primero tenés que configurar el nombre de tu negocio (Slug).")
         return
     }
-
-    // Armamos el link completo
     const url = `${window.location.origin}/${slug}`
-
-    // Copiamos al portapapeles
     navigator.clipboard.writeText(url)
-    
-    // Le avisamos al usuario (Si tenés Toast, usá toast.success)
-    alert(`¡Link copiado!\n\n${url}\n\nPegalo en WhatsApp o Instagram.`)
+    alert(`¡Link copiado!\n\n${url}`)
   }
 
   return (
@@ -64,8 +64,9 @@ export function NavHeader({
               onRegistrarCobroClick={onRegistrarCobro}
               onConfigClick={() => setIsConfigOpen(true)} 
               onLogoutClick={onVolver}
-              // 2. CONECTAMOS LA FUNCIÓN ACÁ 👇
               onShareClick={handleShare} 
+              // 👇 PASAMOS EL ID BLINDADO ACÁ
+              idComercio={idParaTelegram} 
             />
             
             <div className="h-10 w-10 rounded-full bg-[#4A4A4A] flex items-center justify-center text-[#D6Dac2] font-bold shadow-md border border-migue/30 uppercase">

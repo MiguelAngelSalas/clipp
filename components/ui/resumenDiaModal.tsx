@@ -7,14 +7,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Clock, X, CheckCircle2, CircleDashed, Ban, Banknote } from "lucide-react" // <--- Agregamos icono Banknote
+import { Clock, X, CheckCircle2, CircleDashed, Ban, Banknote } from "lucide-react"
 
 interface ResumenDiaModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   date: Date | undefined
   turnos: any[]
-  extras?: any[] // <--- NUEVO: Ahora aceptamos la lista de extras (el ? es para que no rompa si viene vacio)
+  extras?: any[]
 }
 
 export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] }: ResumenDiaModalProps) {
@@ -57,36 +57,41 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
           {/* LISTA */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             
-            {/* 1. RENDERIZAMOS LOS EXTRAS PRIMERO (O PODES PONERLOS AL FINAL) */}
-            {extras.length > 0 && extras.map((extra) => (
-               <div key={`extra-${extra.id}`} className="p-5 rounded-xl shadow-sm border border-yellow-200/50 bg-yellow-50/50 flex items-center justify-between">
-                   <div className="flex items-center gap-4">
-                       <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shadow-sm bg-yellow-100 text-yellow-700">
-                           <Banknote className="w-6 h-6" />
-                       </div>
-                       <div>
-                           <p className="font-bold text-xl text-[#333]">
-                               {extra.descripcion || "Ingreso Extra"}
-                           </p>
-                           <p className="text-sm text-[#666] uppercase tracking-wide flex items-center gap-2">
-                               Movimiento de Caja
-                           </p>
-                       </div>
-                   </div>
-                   <div className="text-right">
-                       <div className="flex items-center justify-end gap-1 text-yellow-600 font-bold text-xs mb-1">
-                           <CheckCircle2 className="w-3 h-3" /> EXTRA
-                       </div>
-                       <p className="font-bold text-lg text-[#333]">
-                           $ {extra.monto}
-                       </p>
-                   </div>
-               </div>
-            ))}
+            {/* 1. RENDERIZAMOS LOS EXTRAS (CON KEY ÚNICA GARANTIZADA ✅) */}
+            {extras.length > 0 && extras.map((extra, index) => {
+                // Usamos id_turno, id, o el index como último recurso para evitar el error extra-undefined
+                const extraKey = extra.id_turno || extra.id || `extra-idx-${index}`;
+
+                return (
+                  <div key={`extra-${extraKey}`} className="p-5 rounded-xl shadow-sm border border-yellow-200/50 bg-yellow-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shadow-sm bg-yellow-100 text-yellow-700">
+                              <Banknote className="w-6 h-6" />
+                          </div>
+                          <div>
+                              <p className="font-bold text-xl text-[#333]">
+                                  {extra.descripcion || "Ingreso Extra"}
+                              </p>
+                              <p className="text-sm text-[#666] uppercase tracking-wide flex items-center gap-2">
+                                  Movimiento de Caja
+                              </p>
+                          </div>
+                      </div>
+                      <div className="text-right">
+                          <div className="flex items-center justify-end gap-1 text-yellow-600 font-bold text-xs mb-1">
+                              <CheckCircle2 className="w-3 h-3" /> EXTRA
+                          </div>
+                          <p className="font-bold text-lg text-[#333]">
+                              $ {extra.monto}
+                          </p>
+                      </div>
+                  </div>
+                )
+            })}
 
             {/* 2. RENDERIZAMOS LOS TURNOS */}
             {turnos.length > 0 ? (
-                turnos.map((turno) => {
+                turnos.map((turno, idx) => {
                     const horaDate = new Date(turno.hora);
                     const horaSimple = isNaN(horaDate.getTime()) 
                         ? turno.hora.slice(0, 2) 
@@ -100,7 +105,7 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
                     if (estaCancelado) containerClass = "bg-red-50 border-red-100 opacity-60 grayscale-[0.5]";
 
                     return (
-                        <div key={turno.id_turno || Math.random()} className={`p-5 rounded-xl shadow-sm border flex items-center justify-between transition-colors ${containerClass}`}>
+                        <div key={turno.id_turno || `turno-idx-${idx}`} className={`p-5 rounded-xl shadow-sm border flex items-center justify-between transition-colors ${containerClass}`}>
                             <div className="flex items-center gap-4">
                                 <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shadow-md 
                                     ${estaFinalizado ? "bg-[#7A9A75] text-white" : estaCancelado ? "bg-red-200 text-red-700" : "bg-[#4A4A4A] text-[#D6Dac2]"}`}>
@@ -140,7 +145,7 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
                     )
                 })
             ) : (
-                extras.length === 0 && ( // Solo mostramos "No hay nada" si no hay turnos NI extras
+                extras.length === 0 && ( 
                     <div className="h-full flex flex-col items-center justify-center opacity-40 text-migue-gris">
                         <Clock className="w-16 h-16 mb-4" />
                         <p className="text-xl">No hay movimientos hoy.</p>

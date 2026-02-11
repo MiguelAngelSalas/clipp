@@ -5,22 +5,24 @@ import { ResumenDiaModal } from "@/components/ui/resumenDiaModal"
 import { RegistrarCobroModal } from "@/components/ui/registrarCobroModal" 
 import { SubscriptionModal } from "@/components/dashboard/subscription-modal"
 
-export function AgendaModals({ logic }: { logic: any }) {
-    // 1. Desestructuramos todo (AGREGAMOS extrasDelDia)
+// Pasamos el 'usuario' como prop extra desde AgendaView para mayor seguridad
+export function AgendaModals({ logic, usuario: usuarioProp }: { logic: any, usuario: any }) {
+    
     const { 
         modals, 
         cerrarModal, 
         guardarTurno, 
         registrarCobro, 
         date, 
-        turnosDelDia,
-        extrasDelDia, // <--- 1. IMPORTANTE: TRAEMOS LOS EXTRAS DEL HOOK
-        turnoEditando, 
-        usuario, 
+        turnos,        // <--- Cambiamos turnosDelDia por turnos (el array completo)
+        extrasDelDia,
+        turnoEditando,
         nombreBarberia 
     } = logic
 
-    // 2. DEFINIMOS LA FUNCIÓN TRADUCTORA
+    // El usuario puede venir del hook o de la prop del padre
+    const usuarioFinal = usuarioProp || logic.usuario;
+
     const handleGuardarCobro = (datosModal: any) => {
         registrarCobro({
             monto: datosModal.monto,
@@ -29,17 +31,17 @@ export function AgendaModals({ logic }: { logic: any }) {
         })
     }
 
-    // 3. EL RETURN
     return (
         <>
             <NuevoTurnoModal 
                 open={modals.nuevoTurno} 
                 onOpenChange={(open) => !open && cerrarModal('nuevoTurno')}
                 date={date} 
-                turnos={turnosDelDia} 
+                // 👇 ACÁ: Pasamos 'turnos' (todos) para que el modal chequee disponibilidad
+                turnos={turnos || []} 
                 turnoAEditar={turnoEditando}
                 onGuardar={guardarTurno} 
-                usuario={usuario} 
+                usuario={usuarioFinal} 
             />
 
             <RegistrarCobroModal 
@@ -52,14 +54,14 @@ export function AgendaModals({ logic }: { logic: any }) {
                 open={modals.resumen} 
                 onOpenChange={(open) => !open && cerrarModal('resumen')} 
                 date={date} 
-                turnos={turnosDelDia}
-                extras={extrasDelDia} // <--- 2. SE LO PASAMOS AL MODAL
+                turnos={logic.turnosDelDia} // Acá sí solo los del día para el resumen
+                extras={extrasDelDia}
             />
 
             <SubscriptionModal 
                 isOpen={modals.suscripcion} 
                 onClose={() => cerrarModal('suscripcion')}
-                userEmail={usuario?.email_unico || usuario?.email}
+                userEmail={usuarioFinal?.email_unico || usuarioFinal?.email}
                 nombreComercio={nombreBarberia}
             />
         </>

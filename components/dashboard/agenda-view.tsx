@@ -4,8 +4,8 @@ import * as React from "react"
 import { NavHeader } from "@/components/dashboard/nav-header"
 import { CalendarWidget } from "@/components/dashboard/calendar-widget"
 import { ScheduleList } from "@/components/dashboard/schedule/schedule-list"
-import { AgendaModals } from "./agenda-modals" // <--- Importamos el grupo de modales
-import { useAgendaLogic } from "@/components/dashboard/hooks/useAgendaLogic" // <--- Importamos el cerebro
+import { AgendaModals } from "./agenda-modals" 
+import { useAgendaLogic } from "@/components/dashboard/hooks/useAgendaLogic" 
 
 const THEME = {
     bg: "bg-migue-beige",       
@@ -13,11 +13,21 @@ const THEME = {
 }
 
 export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
-    // Toda la lógica compleja vive ahora dentro de este hook
+    // 1. Inyectamos toda la lógica del hook
     const logic = useAgendaLogic(usuario)
     
-    // Desestructuramos solo lo que necesitamos para el Layout
-    const { date, setDate, turnos, turnosDelDia, abrirModal, nombreBarberia, cargarTurnos } = logic
+    // 2. Desestructuramos lo necesario. 
+    // NOTA: 'recargar' es el nombre que usamos en el hook para 'cargarTurnos'
+    const { 
+        date, 
+        setDate, 
+        turnos, 
+        turnosDelDia, 
+        abrirModal, 
+        nombreBarberia, 
+        finalizarTurno,
+        onCancelarTurno 
+    } = logic
 
     return (
         <div className={`min-h-screen ${THEME.bg} ${THEME.text}`}>
@@ -37,7 +47,11 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
                             Hola, {nombreBarberia} 👋
                         </h1>
                         <p className="text-xl md:text-2xl font-[900] text-[#3D2B1F] opacity-90 capitalize mt-2">
-                            {new Date().toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long' })}
+                            {new Date().toLocaleDateString("es-AR", { 
+                                weekday: 'long', 
+                                day: 'numeric', 
+                                month: 'long' 
+                            })}
                         </p>
                     </div>
 
@@ -51,6 +65,7 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
 
                 {/* --- GRID PRINCIPAL --- */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                    {/* Lateral Izquierdo: Calendario */}
                     <div className="md:col-span-4">
                         <CalendarWidget 
                             date={date} 
@@ -59,20 +74,25 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
                             usuario={usuario}
                         />
                     </div>
+
+                    {/* Lateral Derecho: Lista de Turnos */}
                     <div className="md:col-span-8">
                         <ScheduleList 
                             date={date}
                             turnosDelDia={turnosDelDia} 
                             onAddExtra={() => abrirModal('nuevoTurno')}
-                            onTurnoUpdated={cargarTurnos}
                             onEditTurno={(turno) => abrirModal('nuevoTurno', turno)}
+                            // Aquí conectamos las funciones de acción del hook
+                            onFinalizarTurno={finalizarTurno}
+                            onCancelarTurno={onCancelarTurno}
                         />
                     </div>
                 </div>
             </main>
 
-            {/* --- MODALES (Ahora es una sola línea) --- */}
-            <AgendaModals logic={logic} />
+            {/* --- GRUPO DE MODALES --- */}
+            {/* Le pasamos 'logic' entero para que los modales tengan acceso a todo el estado */}
+            <AgendaModals logic={logic} usuario = {usuario} />
         </div>
     )
 }

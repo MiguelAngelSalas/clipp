@@ -13,6 +13,7 @@ export function useGuestBooking(idComercio: number) {
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [nombre, setNombre] = useState("")
   const [telefono, setTelefono] = useState("")
+  const [servicio, setServicio] = useState("") 
 
   // 1. Cargar Datos
   useEffect(() => {
@@ -32,7 +33,7 @@ export function useGuestBooking(idComercio: number) {
     fetchData()
   }, [idComercio])
 
-  // 2. Calcular Slots
+  // 2. Calcular Slots (Grilla de horarios vacía)
   const horariosPosibles = useMemo(() => {
     if (!comercio) return []
     const slots = []
@@ -54,56 +55,51 @@ export function useGuestBooking(idComercio: number) {
     return slots
   }, [comercio])
 
-  // 3. Filtrar Ocupados (ARREGLADO)
+  // 3. Filtrar Ocupados (MÉTODO ATÓMICO: STRING VS STRING) ✅
   const getHorariosLibres = (fecha: Date | undefined) => {
     if (!fecha) return []
-    const fechaStr = fecha.toISOString().split('T')[0]
     
-    const ocupados = turnosOcupados
+    // Convertimos la fecha del calendario a "YYYY-MM-DD" estándar
+    // Usamos 'en-CA' que siempre devuelve YYYY-MM-DD
+    const fechaSeleccionadaStr = fecha.toLocaleDateString('en-CA') 
+    
+    const horasOcupadas = turnosOcupados
       .filter(t => {
-        // Obtenemos la fecha del turno en formato YYYY-MM-DD
-        const tStr = new Date(t.fecha).toISOString().split('T')[0]
-        return tStr === fechaStr && t.estado !== 'cancelado'
+        if (t.estado === 'cancelado') return false
+
+        // 1. MIRAMOS EL CAMPO 'fecha', NO 'hora'
+        // t.fecha viene como "2026-02-11T00:00:00.000Z" -> split('T')[0] da "2026-02-11"
+        const turnoFechaStr = t.fecha.toString().split('T')[0]
+        
+        return turnoFechaStr === fechaSeleccionadaStr
       })
       .map(t => {
-        const d = new Date(t.hora)
-        // 🛠️ CAMBIO CLAVE 1: Usamos getHours() (Hora Local)
-        // Esto hace que las 22:30 de la DB se lean como 19:30
-        return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+        // 2. AHORA SÍ SACAMOS LA HORA
+        // t.hora viene como "1970-01-01T14:30:00.000Z"
+        // split('T')[1] nos da "14:30:00.000Z", substring(0,5) nos da "14:30"
+        return t.hora.toString().split('T')[1].substring(0, 5) 
       })
       
-    return horariosPosibles.filter(h => !ocupados.includes(h))
+    // Filtramos: Dejamos solo las horas que NO están en la lista de ocupadas
+    return horariosPosibles.filter(h => !horasOcupadas.includes(h))
   }
 
-  // 4. Enviar Reserva (FIX FINAL PARA ZONA HORARIA)
+  // 4. Enviar Reserva
   const reservarTurno = async () => {
     if (!date || !selectedTime || !nombre || !telefono) return false
     setSubmitting(true)
     
-    // 1. Armamos la fecha local tal cual la eligió el usuario (ej: 19:30)
-    const [h, m] = selectedTime.split(':').map(Number)
-    const fechaLocal = new Date(date)
-    fechaLocal.setHours(h, m, 0, 0) 
-    
-    // 2. Extraemos la hora UTC real (ej: si es 19:30 AR, acá saca 22:30)
-    // Esto es lo que le vamos a mandar a la API para que guarde bien
-    const utcH = fechaLocal.getUTCHours().toString().padStart(2, '0')
-    const utcM = fechaLocal.getUTCMinutes().toString().padStart(2, '0')
-    const horaParaEnviar = `${utcH}:${utcM}`
-
     try {
       const res = await fetch('/api/turnos', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           id_comercio: idComercio,
-          
-          fecha: formatDateLocal(date), // Mantenemos el formato string YYYY-MM-DD
-          hora: horaParaEnviar,         // Mandamos la hora convertida a UTC ("22:30")
-          
+          fecha: formatDateLocal(date), // "YYYY-MM-DD"
+          hora: selectedTime,           // "19:30" (String puro) 
           nombre_invitado: nombre,
           contacto_invitado: telefono,
-          servicio: "Corte de Pelo", 
+          servicio: servicio || "Corte de Pelo", 
           monto: 0,
           estado: "pendiente"
         })
@@ -119,6 +115,7 @@ export function useGuestBooking(idComercio: number) {
     selectedTime, setSelectedTime,
     nombre, setNombre,
     telefono, setTelefono,
+    servicio, setServicio,
     horariosPosibles, getHorariosLibres, reservarTurno
   }
 }

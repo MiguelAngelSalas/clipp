@@ -36,16 +36,30 @@ export function useLoginLogic(onLoginSuccess: () => void) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             })
+            
             const data = await res.json()
+            console.log("🔍 RESPUESTA API LOGIN:", data) // <--- ESTO ES ORO
 
             if (res.ok) {
-                localStorage.setItem("usuario_clipp", JSON.stringify(data.user))
-                onLoginSuccess() 
+                // 👇 ACÁ ESTABA EL ERROR POTENCIAL
+                // Si la API devuelve { user: {...} }, usamos data.user.
+                // Si la API devuelve el objeto directo {...}, usamos data.
+                const usuarioAGuardar = data.user || data 
+
+                // Guardamos
+                localStorage.setItem("usuario_clipp", JSON.stringify(usuarioAGuardar))
+                
+                // Un pequeño delay para asegurar que se guardó antes de redirigir
+                setTimeout(() => {
+                    onLoginSuccess() 
+                }, 100)
+                
             } else {
                 setError(res.status === 401 ? "Email o contraseña incorrectos" : data.message)
                 triggerShake()
             }
         } catch (error) {
+            console.error(error)
             setError("Error de conexión.")
             triggerShake()
         } finally {

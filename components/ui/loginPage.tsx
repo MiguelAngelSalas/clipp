@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation" 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, AlertCircle, X } from "lucide-react"
-import { useLoginLogic } from "../../app/api/auth/hooks/useLoginLogic" // <--- Importamos el hook
-import { LoginSuccess } from "./LoginSucces" // <--- Importamos el componente de éxito
+import { useLoginLogic } from "../../app/api/auth/hooks/useLoginLogic"
+import { LoginSuccess } from "./LoginSucces"
 
 interface LoginPageProps {
   onLoginSuccess: () => void 
@@ -16,16 +17,31 @@ interface LoginPageProps {
 
 export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPageProps) {
   
-  // Usamos el hook para toda la lógica
+  // 1. Inicializamos el router
+  const router = useRouter()
+
+  // 2. EFECTO "PATOVICA": Si ya hay usuario, al Dashboard
+  React.useEffect(() => {
+    // 👇 ACÁ ESTÁ EL CAMBIO: Buscamos 'usuario_clipp'
+    const usuarioGuardado = localStorage.getItem("usuario_clipp") 
+    
+    // Si existe el usuario guardado (no es null ni vacío), redirigimos
+    if (usuarioGuardado) {
+      console.log("Sesión encontrada, redirigiendo al Dashboard...")
+      router.push("/dashboard") 
+    }
+  }, [router])
+
+  // --- LÓGICA ORIGINAL DEL LOGIN ---
   const {
     email, setEmail,
     password, setPassword,
-    mode, setMode, // 'login' | 'recovery'
+    mode, setMode, 
     loading, error, shake, resetSent, setResetSent,
     handleSubmit, setError
   } = useLoginLogic(onLoginSuccess)
 
-  // 1. Si se envió el mail, mostramos la pantalla de éxito
+  // 3. Pantalla de Éxito de Recuperación
   if (resetSent) {
     return (
         <div className="min-h-screen bg-migue-beige flex items-center justify-center p-4">
@@ -34,7 +50,7 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
     )
   }
 
-  // 2. Si no, mostramos el formulario
+  // 4. Renderizamos el Formulario
   const isRecovery = mode === 'recovery'
 
   return (
@@ -66,7 +82,7 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
               </div>
             )}
 
-            {/* Input Email (Siempre visible) */}
+            {/* Input Email */}
             <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input 
@@ -76,7 +92,7 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
                 />
             </div>
 
-            {/* Input Password (Solo en Login) */}
+            {/* Input Password */}
             {!isRecovery && (
               <div className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-300">
                   <div className="flex items-center justify-between">
@@ -105,7 +121,7 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
                 {loading ? "PROCESANDO..." : (isRecovery ? "ENVIAR LINK" : "INICIAR SESIÓN")}
             </Button>
 
-            {/* Botón Cancelar (Solo en Recovery) */}
+            {/* Botón Cancelar */}
             {isRecovery && (
               <button 
                 onClick={() => { setMode('login'); setError(null); }}
@@ -116,7 +132,7 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
             )}
         </div>
 
-        {/* FOOTER: Registro y Volver */}
+        {/* FOOTER */}
         {!isRecovery && (
           <div className="text-center text-sm text-migue-gris opacity-80 pt-4 border-t border-migue/10">
               ¿No tenés cuenta?{" "}

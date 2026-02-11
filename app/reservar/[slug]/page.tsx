@@ -7,77 +7,51 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Loader2, Home } from "lucide-react" 
 import { cn } from "@/lib/utils"
 
-// Componentes (Asegurate que estén en la carpeta components dentro de reservas/[slug])
+// Componentes modulares
 import { StepCalendar } from "./components/StepCalendar" 
 import { StepTime } from "./components/StepTime"
 import { StepData } from "./components/StepData"
 import { StepSuccess } from "./components/StepSuccess" 
 
-// Hook
+// Hook personalizado
 import { useGuestBooking } from "./hooks/useGuestBooking" 
 
-// --------------------------------------------------------
-// 1. COMPONENTE PADRE (EL TRADUCTOR)
-// --------------------------------------------------------
 export default function GuestBookingPage() {
   const params = useParams()
-  const router = useRouter()
-  
-  // Capturamos el SLUG del link (ej: "el-kuni")
   const slug = params.slug as string 
-
   const [idComercio, setIdComercio] = React.useState<number | null>(null)
   const [error, setError] = React.useState(false)
 
+  // 1. Buscamos el ID del comercio por su Slug
   React.useEffect(() => {
-    // MAGIA: Buscamos el ID usando el Slug
     const fetchId = async () => {
       try {
         const res = await fetch(`/api/usuarios/publico?slug=${slug}`)
         if (res.ok) {
           const data = await res.json()
-          setIdComercio(data.id_comercio) // <--- ¡ACÁ CONSEGUIMOS EL NÚMERO!
+          setIdComercio(data.id_comercio)
         } else {
-          console.error("No se encontró el comercio")
           setError(true)
         }
       } catch (e) {
-        console.error("Error buscando ID:", e)
         setError(true)
       }
     }
-
     if (slug) fetchId()
   }, [slug])
 
-  // PANTALLA DE ERROR
-  if (error) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFBF7]">
-        <h1 className="text-4xl mb-2">🤔</h1>
-        <h2 className="text-2xl font-bold text-[#3A3A3A] mb-4">Comercio no encontrado</h2>
-        <Button onClick={() => router.push('/')}>Volver al inicio</Button>
-    </div>
-  )
+  if (error) return <ErrorState />
+  if (!idComercio) return <LoadingState />
 
-  // PANTALLA DE CARGA (Mientras traduce el nombre a ID)
-  if (!idComercio) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]">
-      <Loader2 className="w-10 h-10 animate-spin text-[#7A9A75]" />
-    </div>
-  )
-
-  // SI YA TENEMOS EL ID, MOSTRAMOS EL FORMULARIO REAL
   return <BookingForm idComercio={idComercio} slug={slug} />
 }
 
-// --------------------------------------------------------
-// 2. COMPONENTE HIJO (TU FORMULARIO REAL)
-// --------------------------------------------------------
+// --- SUB-COMPONENTE: EL FORMULARIO ---
 function BookingForm({ idComercio, slug }: { idComercio: number, slug: string }) {
   const router = useRouter()
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1)
 
-  // Ahora el hook recibe un NÚMERO real y funciona perfecto
+  // El hook ahora tiene todo lo necesario para hablar con el backend
   const { 
     comercio, loadingData, submitting,
     date, setDate, selectedTime, setSelectedTime,
@@ -88,38 +62,41 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
   const handleConfirmar = async () => {
     const exito = await reservarTurno()
     if (exito) setStep(4)
-    else alert("Error al reservar")
+    // El error ya lo maneja el hook con un toast o alert interno
   }
 
-  if (loadingData) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]"><Loader2 className="w-10 h-10 animate-spin text-[#7A9A75]" /></div>
-  }
+  if (loadingData) return <LoadingState />
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4">
       
-      {/* Botón Volver (Corregido para usar el Slug) */}
+      {/* Botón Home - Solo si no terminó la reserva */}
       {step !== 4 && (
-        <Button variant="ghost" onClick={() => router.push(`/${slug}`)} className="absolute top-4 left-4 text-gray-500 hover:text-[#7A9A75]">
-          <Home className="mr-2 h-4 w-4" /> Volver a la Barbería
+        <Button 
+          variant="ghost" 
+          onClick={() => router.push(`/${slug}`)} 
+          className="absolute top-4 left-4 text-gray-400 hover:text-[#7A9A75]"
+        >
+          <Home className="mr-2 h-4 w-4" /> Volver
         </Button>
       )}
 
-      <Card className="w-full max-w-2xl shadow-xl border-0 bg-white/80 backdrop-blur-md">
-        <CardHeader className="text-center border-b border-gray-100 pb-6 relative">
+      <Card className="w-full max-w-2xl shadow-xl border-0 bg-white/90 backdrop-blur-sm">
+        <CardHeader className="text-center border-b border-gray-50 pb-6">
           <ProgressIndicator step={step} />
           <CardTitle className="font-serif text-3xl text-[#3A3A3A] mt-4">
-            {comercio?.nombre_empresa || "Reserva tu Turno"}
+            {comercio?.nombre_empresa || "Barbería"}
           </CardTitle>
-          <CardDescription className="text-lg">
-            {step === 1 && "Seleccioná el día"}
-            {step === 2 && "Elegí el horario"}
-            {step === 3 && "Completá tus datos"}
-            {step === 4 && "¡Confirmación exitosa!"}
+          <CardDescription className="text-base font-medium text-[#7A9A75]">
+            {step === 1 && "1. Elegí el día"}
+            {step === 2 && "2. Elegí la hora"}
+            {step === 3 && "3. Dejanos tu nombre"}
+            {step === 4 && "¡Todo listo!"}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="pt-8">
+          {/* PASO 1: CALENDARIO */}
           {step === 1 && (
             <StepCalendar 
               date={date} 
@@ -128,6 +105,7 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
             />
           )}
 
+          {/* PASO 2: HORARIOS */}
           {step === 2 && date && (
             <StepTime 
               date={date} 
@@ -135,14 +113,16 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
               horariosPosibles={horariosPosibles} 
               horariosLibres={getHorariosLibres(date)} 
               onSelect={setSelectedTime} 
-              onBack={() => { setStep(1); setDate(undefined); setSelectedTime(null); }} 
+              onBack={() => { setStep(1); setSelectedTime(null); }} 
               onContinue={() => setStep(3)} 
             />
           )}
 
+          {/* PASO 3: DATOS DEL CLIENTE */}
           {step === 3 && date && (
             <StepData 
-              date={date} selectedTime={selectedTime}
+              date={date} 
+              selectedTime={selectedTime}
               nombre={nombre} setNombre={setNombre}
               telefono={telefono} setTelefono={setTelefono}
               onBack={() => setStep(2)}
@@ -151,11 +131,13 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
             />
           )}
 
+          {/* PASO 4: ÉXITO */}
           {step === 4 && (
             <StepSuccess 
-              date={date} time={selectedTime}
+              date={date} 
+              time={selectedTime}
               onNew={() => window.location.reload()}
-              onBack={() => router.push(`/${slug}`)} // Volver al perfil
+              onBack={() => router.push(`/${slug}`)}
             />
           )}
         </CardContent>
@@ -164,12 +146,44 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
   )
 }
 
+// --- COMPONENTES AUXILIARES DE ESTADO ---
+
 function ProgressIndicator({ step }: { step: number }) {
   return (
-    <div className="flex justify-center gap-2 mb-4">
+    <div className="flex justify-center gap-2 mb-2">
       {[1, 2, 3].map(s => (
-        <div key={s} className={cn("h-1 w-8 rounded-full transition-all", step >= s ? "bg-[#7A9A75]" : "bg-gray-200")} />
+        <div 
+          key={s} 
+          className={cn(
+            "h-1.5 w-10 rounded-full transition-all duration-500", 
+            step >= s ? "bg-[#7A9A75]" : "bg-gray-100"
+          )} 
+        />
       ))}
+    </div>
+  )
+}
+
+function LoadingState() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]">
+      <Loader2 className="w-10 h-10 animate-spin text-[#7A9A75]" />
+    </div>
+  )
+}
+
+function ErrorState() {
+  const router = useRouter()
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFBF7] p-4 text-center">
+      <div className="bg-white p-8 rounded-2xl shadow-lg">
+        <span className="text-6xl mb-4 block">💈</span>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Página no encontrada</h2>
+        <p className="text-gray-500 mb-6">El link parece ser incorrecto o la barbería ya no está disponible.</p>
+        <Button onClick={() => router.push('/')} className="bg-[#7A9A75] hover:bg-[#688564]">
+          Ir al inicio
+        </Button>
+      </div>
     </div>
   )
 }

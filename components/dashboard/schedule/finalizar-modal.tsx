@@ -14,8 +14,8 @@ interface FinalizarModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     turno: any
-    // Actualizamos la firma para que acepte el segundo argumento (metodo)
-    onConfirm: (monto: number, metodo?: string) => Promise<void>
+    // Quitamos el "?" para que el método sea obligatorio 
+    onConfirm: (monto: number, metodo: string) => Promise<void> 
 }
 
 export function FinalizarModal({ open, onOpenChange, turno, onConfirm }: FinalizarModalProps) {
@@ -33,12 +33,14 @@ export function FinalizarModal({ open, onOpenChange, turno, onConfirm }: Finaliz
     }, [open, turno])
 
     const handleConfirm = async () => {
+        if (!monto || isNaN(parseFloat(monto))) {
+            alert("Por favor, ingresá un monto válido");
+            return;
+        }
+
         setLoading(true)
-        // 3. ENVIAMOS EL MÉTODO AL CONFIRMAR 👇
-        await onConfirm(
-            monto ? parseFloat(monto) : 0, 
-            metodo === "EFECTIVO" ? "EFECTIVO" : "DIGITAL"
-        )
+        // Enviamos el monto parseado y el estado del select
+        await onConfirm(parseFloat(monto), metodo) 
         setLoading(false)
         onOpenChange(false)
     }

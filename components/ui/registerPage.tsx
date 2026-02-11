@@ -72,6 +72,19 @@ export function RegisterPage({ onRegisterSubmit, onLoginClick, onVolver }: Regis
                             value={formData.email} onChange={handleChange} disabled={loading}
                         />
                     </div>
+
+                    {/* NUEVO: CAMPO DE TELÉFONO */}
+                    <div className="space-y-1.5">
+                        <Label htmlFor="telefono" className={error?.includes("teléfono") ? "text-red-500" : ""}>Teléfono de Contacto</Label>
+                        <Input 
+                            id="telefono" type="text" placeholder="Ej: 1123456789" 
+                            className={`bg-white h-11 transition-all ${error?.includes("teléfono") ? 'border-red-300 focus-visible:ring-red-100' : 'border-migue/20'}`}
+                            value={formData.telefono} onChange={handleChange} disabled={loading}
+                        />
+                        <p className="text-[10px] text-migue-gris opacity-60">
+                          * Lo usaremos para enviarte avisos de nuevos turnos.
+                        </p>
+                    </div>
                     
                     <div className="space-y-1.5">
                         <Label htmlFor="password">Contraseña</Label>

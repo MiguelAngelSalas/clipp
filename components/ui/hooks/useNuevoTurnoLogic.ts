@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
+import { formatTimeDisplay, formatDateLocal } from "@/lib/date-utils"
 
 interface UseNuevoTurnoProps {
     open: boolean
@@ -11,7 +12,6 @@ interface UseNuevoTurnoProps {
 }
 
 export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEditar, onGuardar, usuario }: UseNuevoTurnoProps) {
-    // --- ESTADOS ---
     const [hora, setHora] = useState<string | null>(null)
     const [cliente, setCliente] = useState("")
     const [telefono, setTelefono] = useState("")
@@ -22,7 +22,7 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
     const [loading, setLoading] = useState(false)
     const [buscandoCliente, setBuscandoCliente] = useState(false)
 
-    // --- 1. GENERAR HORARIOS ---
+    // 1. GENERAR HORARIOS
     const horariosDinamicos = useMemo(() => {
         if (!usuario) return []
         const slots = []
@@ -45,17 +45,13 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
         return slots
     }, [usuario])
 
-    // --- 2. INICIALIZAR SI SE EDITA ---
+    // 2. INICIALIZAR SI SE EDITA
     useEffect(() => {
         if (open) { 
             if (turnoAEditar) {
-                const d = new Date(turnoAEditar.hora)
+                const horaLimpia = formatTimeDisplay(turnoAEditar.hora)
                 
-                // 🛠️ CORRECCIÓN 1: Usamos getHours (Local)
-                const h = d.getHours().toString().padStart(2, '0')
-                const m = d.getMinutes().toString().padStart(2, '0')
-                
-                setHora(`${h}:${m}`)
+                setHora(horaLimpia)
                 setCliente(turnoAEditar.clientes?.nombre_cliente || turnoAEditar.nombre_invitado || "")
                 setTelefono(turnoAEditar.contacto_invitado || "")
                 setServicio(turnoAEditar.servicio || "")
@@ -68,7 +64,7 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
         }
     }, [open, turnoAEditar])
 
-    // --- 3. AUTOCOMPLETAR WHATSAPP ---
+    // 3. AUTOCOMPLETAR WHATSAPP
     useEffect(() => {
         const buscarCliente = async () => {
             if (telefono.length >= 10 && !turnoAEditar) {
@@ -81,8 +77,11 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
                     if (data && data.nombre_cliente) {
                         setCliente(data.nombre_cliente)
                     }
-                } catch (error) { console.error(error) } 
-                finally { setBuscandoCliente(false) }
+                } catch (error) { 
+                    console.error("Error buscando cliente:", error) 
+                } finally { 
+                    setBuscandoCliente(false) 
+                }
             }
         }
 
@@ -90,18 +89,20 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
         return () => clearTimeout(timer)
     }, [telefono, usuario, turnoAEditar])
 
-    // --- 4. HELPERS ---
+    // 4. GUARDAR CAMBIOS (CORREGIDO PARA EVITAR DESFASE ✅)
     const handleGuardar = async () => {
         if (!date || !hora) return
         setLoading(true)
         
-        const [h, m] = hora.split(':').map(Number)
-        const fechaHoraFinal = new Date(date)
-        fechaHoraFinal.setHours(h, m, 0, 0) // Esto usa tu hora local, ¡está perfecto!
+        // En lugar de crear un objeto Date acá, mandamos los strings.
+        // Usamos formatDateLocal para asegurar el formato YYYY-MM-DD
+        const fechaString = formatDateLocal(date)
 
         const datos = {
             id_turno: turnoAEditar?.id_turno, 
-            hora: fechaHoraFinal, 
+            id_comercio: usuario.id_comercio || usuario.id,
+            fecha: fechaString, // "2026-02-10"
+            hora: hora,        // "10:30" (El string que seleccionaste)
             nombre_invitado: cliente,
             contacto_invitado: telefono || null,
             servicio: servicio,
@@ -114,17 +115,28 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
         onOpenChange(false)
     }
 
+    // 5. VALIDACIÓN DE OCUPADO
     const estaOcupado = (h: string) => {
         return turnos.some(t => {
             if (turnoAEditar && t.id_turno === turnoAEditar.id_turno) return false
+            if (t.estado === "cancelado") return false
+
             try {
-                const d = new Date(t.hora)
+                const fechaTurnoStr = formatDateLocal(t.hora)
+                const fechaSeleccionadaStr = formatDateLocal(date!)
+
+                if (fechaTurnoStr !== fechaSeleccionadaStr) return false
+
+                // Comparamos el string directo de la DB (Solución Atómica)
+                // t.hora viene como "2026-02-10T10:30:00.000Z"
+                const horaTurnoLocal = typeof t.hora === 'string' 
+                    ? t.hora.split('T')[1].substring(0, 5) 
+                    : formatTimeDisplay(t.hora)
                 
-                // 🛠️ CORRECCIÓN 2: Comparamos con hora Local
-                const horaTurno = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
-                
-                return horaTurno === h
-            } catch { return false }
+                return horaTurnoLocal === h
+            } catch { 
+                return false 
+            }
         })
     }
 

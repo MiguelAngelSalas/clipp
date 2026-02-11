@@ -1,9 +1,16 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Scissors, CheckCircle2, XCircle, DollarSign, Pencil, UserCheck } from "lucide-react"
+import { 
+  Scissors, 
+  CheckCircle2, 
+  XCircle, 
+  DollarSign, 
+  Pencil, 
+  UserCheck, 
+  MessageCircle 
+} from "lucide-react"
 
-// 1. IMPORTAMOS LA FUNCIÓN DE TU LIB 👇
 import { formatTimeDisplay } from "@/lib/date-utils"
 
 import {
@@ -18,7 +25,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-// --- TEMA VISUAL ---
 const THEME = {
   card: "bg-white/50 border border-slate-200 backdrop-blur-sm", 
   accentGreen: "bg-[#7A9A75] text-white", 
@@ -36,13 +42,11 @@ interface TurnoCardProps {
   onEdit: (turno: any) => void
   onCancel: (id: number) => void
   onFinalizar: (turno: any) => void
+  onNotify: () => void 
 }
 
-export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardProps) {
+export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify }: TurnoCardProps) {
 
-  // (Borramos la función 'formatearHora' que estaba acá porque ya no hace falta)
-
-  // --- SOLUCIÓN AL NOMBRE PISADO ---
   const nombreParaMostrar = turno.nombre_invitado || turno.clientes?.nombre_cliente || "Cliente Anónimo";
   
   const esRecurrenteConOtroNombre = 
@@ -55,8 +59,11 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
       {/* IZQUIERDA: HORA Y DATOS */}
       <div className="flex items-center gap-4">
         <div className={`${THEME.accentGreen} min-w-[64px] py-3 rounded-md text-center text-sm font-bold shadow-sm`}>
-          {/* 2. USAMOS LA FUNCIÓN IMPORTADA ACÁ 👇 */}
-          {formatTimeDisplay(turno.hora)}
+          {/* 🛠️ SOLUCIÓN ANTIBUGS: Cortamos el texto directamente para evitar desfase de 3hs */}
+          {typeof turno.hora === 'string' && turno.hora.includes('T') 
+            ? turno.hora.split('T')[1].substring(0, 5) 
+            : formatTimeDisplay(turno.hora) 
+          }
         </div>
         
         <div>
@@ -94,6 +101,19 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
       <div className="flex items-center gap-2 self-end sm:self-center">
         {turno.estado !== 'finalizado' && turno.estado !== 'cancelado' && (
           <>
+            {turno.estado === 'pendiente' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                title="Notificar por WhatsApp"
+                className="border-green-500 text-green-600 hover:bg-green-50 h-8 px-3"
+                onClick={onNotify}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Notificar
+              </Button>
+            )}
+
             <Button 
               variant="ghost" size="icon" title="Modificar Turno"
               className="h-8 w-8 text-blue-400 hover:text-blue-600 hover:bg-blue-50"
@@ -132,7 +152,7 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
 
             <Button 
               size="sm" 
-              className="bg-slate-800 text-white hover:bg-slate-700 shadow-sm"
+              className="bg-slate-800 text-white hover:bg-slate-700 shadow-sm h-8 px-3"
               onClick={() => onFinalizar(turno)}
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -140,6 +160,7 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar }: TurnoCardPro
             </Button>
           </>
         )}
+        
         {turno.estado === 'finalizado' && (
           <p className="text-xs font-bold text-green-600 flex items-center bg-green-50 px-3 py-1 rounded-full border border-green-100">
             <CheckCircle2 className="w-3 h-3 mr-1" /> Completado

@@ -1,212 +1,167 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { enviarWhatsAppConfirmacion } from "@/lib/whatsapp";
+import { enviarNotificacionTelegram } from "@/lib/telegram";
 
-// 1. GET: Obtener turnos y limpiar los viejos 🧹
-export async function GET(request: Request) {
+// --- HELPERS INTERNOS ---
+
+const getInicioDelDiaArg = () => {
+  // Obtenemos YYYY-MM-DD de Argentina
+  const fechaString = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+  return new Date(`${fechaString}T00:00:00.000Z`);
+};
+
+const formatearHora = (horaInput: string, fechaInput: string) => {
+  // 1. Nos aseguramos de tener solo HH:mm (por si el front manda un ISO)
+  let limpia = horaInput.includes('T') ? horaInput.split('T')[1].substring(0, 5) : horaInput;
+  
+  // 2. Creamos la fecha final forzando UTC con la "Z"
+  // Esto hace que si elegiste 19:30, se guarde como 19:30 UTC.
+  const fechaIsoString = `${fechaInput}T${limpia}:00.000Z`;
+  
+  return {
+    objHora: new Date(fechaIsoString),
+    strHora: limpia
+  };
+};
+
+// 1. GET: Obtener y Limpiar
+export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const idComercio = searchParams.get("id_comercio");
-
-    if (!idComercio) {
-      return NextResponse.json({ message: "Falta el ID del comercio" }, { status: 400 });
-    }
-
-    // ============================================================
-    // 🧹 EL BARRENDERO
-    // ============================================================
-    const fechaStringArg = new Date().toLocaleDateString('en-CA', { 
-        timeZone: 'America/Argentina/Buenos_Aires' 
-    });
-
-    const puntoDeCorteISO = `${fechaStringArg}T00:00:00.000Z`;
-    const inicioDelDia = new Date(puntoDeCorteISO);
-
-    // console.log("🧹 Barriendo turnos anteriores a:", inicioDelDia.toISOString());
+    const idComercio = new URL(req.url).searchParams.get("id_comercio");
+    if (!idComercio) return NextResponse.json({ message: "Falta ID" }, { status: 400 });
 
     await prisma.turnos.updateMany({
-      where: {
-        id_comercio: Number(idComercio),
-        fecha: { lt: inicioDelDia }, 
-        estado: "pendiente"
+      where: { 
+        id_comercio: Number(idComercio), 
+        fecha: { lt: getInicioDelDiaArg() }, 
+        estado: "pendiente" 
       },
       data: { estado: "cancelado" }
     });
-    // ============================================================
 
     const turnos = await prisma.turnos.findMany({
       where: { id_comercio: Number(idComercio) },
-      orderBy: { fecha: 'asc' },
-      include: {
-        clientes: { select: { nombre_cliente: true, whatsapp: true } }
-      }
+      orderBy: { hora: 'asc' }, // Ordenar por hora para la agenda
+      include: { clientes: { select: { nombre_cliente: true, whatsapp: true } } }
     });
 
     return NextResponse.json(turnos);
-
   } catch (error) {
-    console.error("Error obteniendo turnos:", error);
-    return NextResponse.json({ message: "Error interno" }, { status: 500 });
+    return NextResponse.json({ message: "Error" }, { status: 500 });
   }
 }
 
-// 2. POST: Crear Turno + Enviar WhatsApp 📝
-export async function POST(request: Request) {
-    try {
-        const body = await request.json();
-        
-        const idComercioRecibido = body.id_comercio || body.idComercio;
+// 2. POST: Crear + Notificar
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const idComercio = body.id_comercio || body.idComercio;
+    const { nombre_invitado, contacto_invitado, fecha, servicio, hora } = body;
 
-        if (!idComercioRecibido) {
-             return NextResponse.json({ message: "Falta el ID del comercio" }, { status: 400 });
-        }
+    // Usamos el helper para clavar la hora elegida
+    const { objHora, strHora } = formatearHora(hora, fecha);
+    
+    // Fecha para la columna 'fecha' (día), la ponemos al mediodía para evitar saltos
+    const fechaFinal = new Date(`${fecha}T12:00:00.000Z`);
 
-        const { nombre_invitado, contacto_invitado, fecha, metodoPago, ...restoDelTurno } = body;
-        let horaFinalRecibida = body.hora;
-
-        if (horaFinalRecibida && horaFinalRecibida.includes('T')) {
-            horaFinalRecibida = horaFinalRecibida.split('T')[1].substring(0, 5);
-        }
-        
-        if (!fecha || !horaFinalRecibida) {
-            return NextResponse.json({ message: "La fecha y la hora son obligatorias" }, { status: 400 });
-        }
-
-        const fechaFinal = new Date(`${fecha}T12:00:00Z`);
-        const horaFinal = new Date(`${fecha}T${horaFinalRecibida}:00`);
-
-        if (isNaN(fechaFinal.getTime()) || isNaN(horaFinal.getTime())) {
-            return NextResponse.json({ message: "Formato de fecha u hora inválido" }, { status: 400 });
-        }
-
-        let idClienteFinal = body.id_cliente; 
-        
-        // --- Gestión del Cliente ---
-        if (!idClienteFinal && contacto_invitado && idComercioRecibido) {
-            const clienteExistente = await prisma.clientes.findFirst({
-                where: { 
-                    whatsapp: contacto_invitado,
-                    id_comercio: Number(idComercioRecibido) 
-                }
-            });
-
-            if (clienteExistente) {
-                const clienteActualizado = await prisma.clientes.update({
-                    where: { id_cliente: clienteExistente.id_cliente },
-                    data: { nombre_cliente: nombre_invitado }
-                });
-                idClienteFinal = clienteActualizado.id_cliente;
-            } else {
-                const nuevoCliente = await prisma.clientes.create({
-                    data: {
-                        id_comercio: Number(idComercioRecibido), 
-                        nombre_cliente: nombre_invitado,
-                        whatsapp: contacto_invitado,
-                    }
-                });
-                idClienteFinal = nuevoCliente.id_cliente;
-            }
-        }
-
-        const nuevoTurno = await prisma.turnos.create({
-            data: {
-                id_comercio: Number(idComercioRecibido),
-                ...restoDelTurno,
-                id_cliente: idClienteFinal, 
-                nombre_invitado: nombre_invitado,
-                contacto_invitado: contacto_invitado,
-                fecha: fechaFinal,
-                hora: horaFinal,
-                metodo_pago: metodoPago || "EFECTIVO" 
-            }
+    const cliente = await prisma.clientes.upsert({
+      where: { 
+        id_comercio_whatsapp: { 
+          id_comercio: Number(idComercio), 
+          whatsapp: contacto_invitado 
+        } 
+      },
+      update: { nombre_cliente: nombre_invitado },
+      create: { 
+        id_comercio: Number(idComercio), 
+        nombre_cliente: nombre_invitado, 
+        whatsapp: contacto_invitado 
+      }
+    }).catch(async () => {
+        return await prisma.clientes.findFirst({ 
+          where: { whatsapp: contacto_invitado, id_comercio: Number(idComercio) }
         });
+    });
 
-        // --- WhatsApp ---
-        try {
-            if (contacto_invitado) {
-                const fechaLinda = new Date(fechaFinal).toLocaleDateString("es-AR", { day: 'numeric', month: 'long' }) + 
-                                   " a las " + horaFinalRecibida + "hs";
-                
-                enviarWhatsAppConfirmacion(
-                    contacto_invitado, 
-                    nombre_invitado, 
-                    fechaLinda
-                );
-            }
-        } catch (error) {
-            console.error("Error no bloqueante enviando WPP:", error);
-        }
+    const nuevoTurno = await prisma.turnos.create({
+      data: {
+        id_comercio: Number(idComercio),
+        id_cliente: cliente?.id_cliente,
+        nombre_invitado,
+        contacto_invitado,
+        servicio: servicio || "Corte",
+        fecha: fechaFinal,
+        hora: objHora, 
+        estado: "pendiente"
+      }
+    });
 
-        return NextResponse.json(nuevoTurno);
+    // Notificación Telegram
+    const comercio = await prisma.comercios.findUnique({
+      where: { id_comercio: Number(idComercio) },
+      select: { telegramChatId: true }
+    });
 
-    } catch (error: any) {
-        console.error("Error creando turno:", error);
-        if (error.code === 'P2002') {
-            return NextResponse.json(
-                { message: "Ya existe un turno reservado en ese horario." }, 
-                { status: 409 }
-            );
-        }
-        return NextResponse.json({ message: "Error al crear turno" }, { status: 500 });
+    if (comercio?.telegramChatId) {
+      enviarNotificacionTelegram({
+        chatId: comercio.telegramChatId,
+        nombre: nombre_invitado,
+        fecha: new Date(fecha).toLocaleDateString("es-AR"),
+        hora: strHora,
+        servicio: servicio
+      });
     }
+
+    return NextResponse.json(nuevoTurno);
+  } catch (error) {
+    console.error("Error en POST:", error);
+    return NextResponse.json({ message: "Error" }, { status: 500 });
+  }
 }
 
-// 3. PUT: Actualizar turno (CON EL FIX DE FECHA 🩹) 🔄
-export async function PUT(request: Request) {
-    try {
-        const body = await request.json();
-        
-        console.log("📦 PUT RECIBIDO:", body);
-        
-        // Usamos 'let' para poder rellenar la fecha si falta
-        let { id_turno, estado, monto, servicio, hora, nombre_invitado, contacto_invitado, fecha, metodoPago } = body;
+// 3. PUT: Actualizar
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json();
+    
+    // 1. Desestructuramos TODO lo que puede venir del front
+    const { 
+      id_turno, 
+      estado, 
+      monto, 
+      metodoPago,
+      // 👇 Agregamos estos campos para la edición
+      nombre_invitado,
+      servicio,
+      hora,
+      fecha,
+      contacto_invitado,
+    } = body;
 
-        if (!id_turno) {
-            return NextResponse.json({ message: "Falta el ID del turno" }, { status: 400 });
-        }
+    console.log("🛠️ ACTUALIZANDO TURNO:", id_turno, body); // Un log para ver qué llega
 
-        const datosAActualizar: any = {};
+    const turnoActualizado = await prisma.turnos.update({
+      where: { id_turno: Number(id_turno) },
+      data: {
+        // Lógica de Estado/Pago (lo que ya tenías)
+        estado: estado || undefined,
+        monto: monto ? Number(monto) : undefined,
+        metodo_pago: metodoPago || undefined,
 
-        // Actualizamos campos simples
-        if (estado) datosAActualizar.estado = estado;
-        if (monto !== undefined && monto !== "") datosAActualizar.monto = Number(monto);
-        if (servicio) datosAActualizar.servicio = servicio;
-        if (nombre_invitado) datosAActualizar.nombre_invitado = nombre_invitado;
-        if (contacto_invitado !== undefined) datosAActualizar.contacto_invitado = contacto_invitado;
-        if (metodoPago) datosAActualizar.metodo_pago = metodoPago;
+        // 👇 Lógica de Edición de Datos (LO NUEVO)
+        // Usamos "|| undefined" para que si no mandás el dato, no lo borre ni lo toque
+        nombre_invitado: nombre_invitado || undefined,
+        servicio: servicio || undefined,
+        hora: hora ? new Date(`1970-01-01T${hora}:00Z`) : undefined,
+        // Ojo con la fecha: Prisma suele pedir objeto Date o string ISO válido
+        fecha: fecha ? new Date(fecha) : undefined, 
+        contacto_invitado: contacto_invitado || undefined,
+      },
+    });
 
-        // --- FIX: SI FALTA FECHA PERO TENEMOS HORA ISO ---
-        // Si el body trae "hora": "2026-02-22T14:30..." pero "fecha": undefined
-        if (!fecha && hora && typeof hora === 'string' && hora.includes('T')) {
-            fecha = hora.split('T')[0]; // "2026-02-22" (Robamos la fecha del string ISO)
-        }
-
-        // Limpiamos la hora para que quede "HH:mm"
-        let horaLimpia = hora;
-        if (horaLimpia && typeof horaLimpia === 'string' && horaLimpia.includes('T')) {
-            horaLimpia = horaLimpia.split('T')[1].substring(0, 5); // "14:30"
-        }
-
-        // Ahora sí, si tenemos las dos cosas (una vino o la calculamos), actualizamos
-        if (horaLimpia && fecha) {
-             const h = new Date(`${fecha}T${horaLimpia}:00`);
-             const f = new Date(`${fecha}T12:00:00Z`); // Truco del mediodía
-             
-             if (!isNaN(h.getTime())) datosAActualizar.hora = h;
-             if (!isNaN(f.getTime())) datosAActualizar.fecha = f;
-        }
-
-        console.log("✅ Datos que vamos a mandar a Prisma:", datosAActualizar);
-
-        const turnoActualizado = await prisma.turnos.update({
-            where: { id_turno: Number(id_turno) },
-            data: datosAActualizar
-        });
-
-        return NextResponse.json(turnoActualizado);
-
-    } catch (error) {
-        console.error("Error actualizando turno:", error);
-        return NextResponse.json({ message: "Error al actualizar" }, { status: 500 });
-    }
+    return NextResponse.json(turnoActualizado);
+  } catch (error) {
+    console.error("❌ Error al actualizar turno:", error);
+    return NextResponse.json({ message: "Error al actualizar" }, { status: 500 });
+  }
 }

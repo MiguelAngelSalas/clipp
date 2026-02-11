@@ -1,8 +1,23 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { User, Phone, ArrowLeft, Loader2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { User, Phone, ArrowLeft, Loader2, Scissors } from "lucide-react"
 
-export function StepData({ date, selectedTime, nombre, setNombre, telefono, setTelefono, onBack, onConfirm, loading }: any) {
+export function StepData({ 
+  date, 
+  selectedTime, 
+  nombre, 
+  setNombre, 
+  telefono, 
+  setTelefono, 
+  servicio, 
+  setServicio, 
+  onBack, 
+  onConfirm, 
+  loading 
+}: any) {
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 max-w-md mx-auto">
       <Button variant="ghost" onClick={onBack} className="text-gray-400 pl-0 hover:text-gray-600">
@@ -16,38 +31,58 @@ export function StepData({ date, selectedTime, nombre, setNombre, telefono, setT
       </div>
 
       <div className="space-y-4">
+        {/* Input Nombre */}
         <div className="relative">
           <User className="absolute left-4 top-4 h-5 w-5 text-gray-400" />
           <Input 
             placeholder="Tu Nombre" 
-            className="pl-12 h-14 text-lg" 
+            className="pl-12 h-14 text-lg border-gray-200 focus:ring-[#7A9A75]" 
             value={nombre} 
             onChange={(e) => setNombre(e.target.value)} 
           />
         </div>
 
+        {/* Input WhatsApp */}
         <div className="relative">
           <Phone className="absolute left-4 top-4 h-5 w-5 text-gray-400" />
           <Input 
             placeholder="WhatsApp (Solo números)" 
-            className="pl-12 h-14 text-lg" 
+            className="pl-12 h-14 text-lg border-gray-200 focus:ring-[#7A9A75]" 
             type="tel" 
             value={telefono} 
             onChange={(e) => {
-              // 1. Agarramos el valor
               const val = e.target.value;
-              // 2. Reemplazamos todo lo que NO sea número (0-9) por nada
               const soloNumeros = val.replace(/\D/g, '');
-              // 3. Guardamos el string limpio
               setTelefono(soloNumeros);
             }} 
           />
         </div>
+
+        {/* SELECTOR DE SERVICIO CON TEXTO MÁS CHICO Y "OPCIONAL" */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">Servicio</span>
+            <span className="text-[11px] text-gray-400 italic">Opcional</span>
+          </div>
+          <div className="relative">
+            <Scissors className="absolute left-4 top-3.5 h-5 w-5 text-gray-400 z-10" />
+            <Select value={servicio} onValueChange={setServicio}>
+              <SelectTrigger className="pl-12 h-12 text-base border-gray-200 focus:ring-[#7A9A75] bg-white text-black">
+                <SelectValue placeholder="¿Qué servicio te hacés?" />
+              </SelectTrigger>
+              <SelectContent className="bg-white text-black border-gray-200">
+                <SelectItem value="Corte de Pelo">Corte de Pelo</SelectItem>
+                <SelectItem value="Corte y Barba">Corte y Barba</SelectItem>
+                <SelectItem value="Barba">Solo Barba</SelectItem>
+                <SelectItem value="Cejas">Perfilado de Cejas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       <Button 
-        className="w-full mt-6 bg-[#7A9A75] hover:bg-[#688564] text-white text-xl h-14 font-bold shadow-lg shadow-[#7A9A75]/20" 
-        // Agregamos una validación extra: mínimo 10 números para Argentina
+        className="w-full mt-6 bg-[#7A9A75] hover:bg-[#688564] text-white text-xl h-14 font-bold shadow-lg shadow-[#7A9A75]/20 transition-all active:scale-[0.98]" 
         disabled={!nombre || telefono.length < 10 || loading} 
         onClick={onConfirm}
       >

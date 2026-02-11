@@ -5,6 +5,7 @@ export function useRegisterLogic(onRegisterSubmit: (datos: any) => Promise<boole
     const [formData, setFormData] = useState({
         nombre: "",
         email: "",
+        telefono: "", // 👈 1. Agregado para el aviso al barbero
         password: "",
         confirmPassword: ""
     })
@@ -29,17 +30,27 @@ export function useRegisterLogic(onRegisterSubmit: (datos: any) => Promise<boole
 
     // Validaciones Computadas
     const passwordsMatch = formData.password === formData.confirmPassword
-    const canSubmit = formData.nombre && formData.email && formData.password && passwordsMatch && !loading
+    
+    // 2. Actualizamos canSubmit para incluir el teléfono
+    const canSubmit = 
+        formData.nombre && 
+        formData.email && 
+        formData.telefono && 
+        formData.password && 
+        passwordsMatch && 
+        !loading
 
     // Acción Principal
     const handleSubmit = async () => {
         setError(null)
 
-        if (!formData.nombre || !formData.email || !formData.password) {
+        // 3. Validación de campos obligatorios incluyendo teléfono
+        if (!formData.nombre || !formData.email || !formData.telefono || !formData.password) {
             setError("Por favor completá todos los campos")
             triggerShake()
             return
         }
+        
         if (!passwordsMatch) {
             setError("Las contraseñas no coinciden")
             triggerShake()
@@ -47,7 +58,8 @@ export function useRegisterLogic(onRegisterSubmit: (datos: any) => Promise<boole
         }
         
         setLoading(true)
-        // Sacamos confirmPassword antes de enviar
+        
+        // Sacamos confirmPassword antes de enviar, el resto (incluyendo telefono) va al backend
         const { confirmPassword, ...datosAEnviar } = formData
         
         try {

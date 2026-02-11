@@ -70,6 +70,7 @@ export async function POST(request: Request) {
         slug: slugFinal,
         email_unico: data.email,
         contrasena: hashedPassword,
+        telefono_unico: data.telefono, // 👈 AGREGAMOS ESTO
         verificationToken: verificationToken,
         emailVerificado: false,
       },

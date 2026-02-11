@@ -16,16 +16,17 @@ import {
   Settings, 
   LogOut, 
   PlusCircle,
-  Share2 // 1. IMPORTAMOS EL ÍCONO NUEVO 👈
+  Share2,
+  Send 
 } from "lucide-react"
 
-// Propiedades del componente
 interface AppMenuProps {
   onNuevoTurnoClick?: () => void
   onRegistrarCobroClick?: () => void 
   onConfigClick?: () => void 
   onLogoutClick?: () => void 
-  onShareClick?: () => void // 2. AGREGAMOS ESTA PROP NUEVA 👈
+  onShareClick?: () => void
+  idComercio?: number 
 }
 
 export default function AppMenu({ 
@@ -33,17 +34,21 @@ export default function AppMenu({
   onRegistrarCobroClick,
   onConfigClick, 
   onLogoutClick,
-  onShareClick // 2b. LA RECIBIMOS ACÁ
+  onShareClick,
+  idComercio 
 }: AppMenuProps) {
   
   const estiloMenu = "bg-white border border-migue shadow-lg min-w-[200px]"
   const estiloItem = "cursor-pointer text-migue-gris focus:bg-migue-beige focus:text-migue-gris py-2"
   const verdeMigue = "text-[#7A9A75]"
 
+  // Nombre de usuario de tu bot (el que termina en _bot)
+  const botUsername = "saas_barberia_bot"; 
+
   return (
     <Menubar className="rounded-md border-none bg-transparent shadow-none">
       
-      {/* MENÚ AGENDA (Igual que antes) */}
+      {/* MENÚ AGENDA */}
       <MenubarMenu>
         <MenubarTrigger className="font-bold text-migue-gris cursor-pointer hover:bg-migue-beige rounded px-3 py-1 transition-colors data-[state=open]:bg-migue-beige">
             Agenda
@@ -62,7 +67,7 @@ export default function AppMenu({
         </MenubarContent>
       </MenubarMenu>
 
-      {/* MENÚ CAJA (Igual que antes) */}
+      {/* MENÚ CAJA */}
       <MenubarMenu>
         <MenubarTrigger className="cursor-pointer text-migue-gris hover:bg-migue-beige rounded px-3 py-1 transition-colors data-[state=open]:bg-migue-beige">
             Caja
@@ -85,9 +90,21 @@ export default function AppMenu({
         </MenubarTrigger>
         <MenubarContent className={estiloMenu}>
           
-          {/* 3. ACÁ AGREGAMOS LA OPCIÓN DE COMPARTIR 👇 */}
           <MenubarItem className={estiloItem} onClick={onShareClick}>
               <Share2 className="mr-2 h-4 w-4 text-blue-500" /> Compartir Link
+          </MenubarItem>
+
+          {/* OPCIÓN TELEGRAM COMO LINK DIRECTO */}
+          <MenubarItem className={estiloItem} asChild>
+            <a 
+              href={`https://telegram.me/${botUsername}?start=${idComercio}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center w-full"
+            >
+              <Send className="mr-2 h-4 w-4 text-[#0088cc]" /> 
+              Notificaciones Telegram
+            </a>
           </MenubarItem>
           
           <MenubarSeparator className="bg-migue-gris/20" />
