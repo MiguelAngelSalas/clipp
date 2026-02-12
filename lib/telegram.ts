@@ -1,6 +1,6 @@
 // lib/telegram.ts
 export async function enviarNotificacionTelegram({ chatId, nombre, fecha, hora, servicio }: any) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = process.env.TELEGRAM_TOKEN;
   if (!token || !chatId) return;
 
   const mensaje = `🔔 *Nuevo Turno*\n\n👤 Cliente: ${nombre}\n📅 Fecha: ${fecha}\n⏰ Hora: ${hora} hs\n✂️ Servicio: ${servicio}`;
