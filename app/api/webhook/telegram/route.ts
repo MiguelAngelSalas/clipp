@@ -1,66 +1,43 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  // LOG DE EMERGENCIA: Esto se tiene que ver SI O SI en Vercel
-  console.log("🚀 WEBHOOK DISPARADO - Alguien tocó el bot");
+  // Este log tiene que aparecer sí o sí si Telegram llega a Vercel
+  console.log("🚀 INFO: Webhook invocado");
 
   try {
     const body = await req.json();
-    console.log("📩 BODY RECIBIDO:", JSON.stringify(body));
+    console.log("📦 BODY DE TELEGRAM:", JSON.stringify(body));
 
-    const message = body.message;
-    if (!message || !message.text) return NextResponse.json({ ok: true });
+    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN;
+    
+    if (!token) {
+      console.error("❌ ERROR: No hay TOKEN en las variables de Vercel");
+      return NextResponse.json({ ok: true });
+    }
 
-    const chatId = message.chat.id.toString();
-    const text = message.text;
-
-    if (text.startsWith("/start")) {
-      const parts = text.split(" ");
-      const idComercioStr = parts.length > 1 ? parts[1] : null;
-
-      // USAMOS LOS DOS NOMBRES POSIBLES
-      const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN;
-
-      if (!token) {
-        console.error("❌ ERROR CRITICO: No hay TOKEN en Vercel. Revisá las variables de entorno.");
-        return NextResponse.json({ ok: true }); 
-      }
-
-      if (idComercioStr && !isNaN(Number(idComercioStr))) {
-        const idComercio = Number(idComercioStr);
-
-        // Actualizamos la DB
-        const comercio = await prisma.comercios.update({
-          where: { id_comercio: idComercio },
-          data: { telegramChatId: chatId }
-        });
-
-        console.log(`✅ DB Actualizada: Comercio ${idComercio} -> Chat ${chatId}`);
-
-        // Mandamos respuesta
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: `✅ ¡Vínculo exitoso para ${comercio.nombre_empresa}!`,
-          }),
-        });
-        
-        const resData = await res.json();
-        console.log("📡 Respuesta de Telegram API:", resData);
-      }
+    // Intentamos mandarte un mensaje de vuelta directo al recibir cualquier cosa
+    if (body.message) {
+      const chatId = body.message.chat.id;
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "🤖 ¡Hola! El servidor recibió tu mensaje. Si ves esto, la conexión funciona.",
+        }),
+      });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    console.error("🔥 ERROR EN EL WEBHOOK:", error.message);
-    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error("🔥 Error crítico:", err.message);
+    return NextResponse.json({ ok: false }, { status: 200 });
   }
 }
 
-// Para probar desde el navegador si la ruta existe
+// Para probar en el navegador
 export async function GET() {
-  return NextResponse.json({ status: "Webhook activo y esperando POSTs de Telegram" });
+  return NextResponse.json({ mensaje: "El endpoint está vivo" });
 }
