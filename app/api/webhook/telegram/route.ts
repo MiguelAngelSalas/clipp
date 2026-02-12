@@ -34,7 +34,7 @@ export async function POST(req: Request) {
           console.log("✅ Comercio encontrado. Actualizando telegramId...");
           await prisma.comercios.update({
             where: { id_comercio: comercio.id_comercio },
-            data: { telegramId: chatId.toString() }
+            data: { telegramChatId: chatId.toString() }
           });
 
           // Enviar respuesta al usuario
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: chatId,
-              text: `¡Vinculación exitosa! Soy el bot de ${comercio.nombre}.`
+              text: `¡Vinculación exitosa! Soy el bot de ${comercio.nombre_empresa}.`
             }),
           });
           console.log("📧 Mensaje de éxito enviado a Telegram");
