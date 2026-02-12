@@ -2,20 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enviarNotificacionTelegram } from "@/lib/telegram";
 
-// --- HELPERS INTERNOS ---
+export const dynamic = 'force-dynamic';
 
+// --- HELPERS INTERNOS ---
 const getInicioDelDiaArg = () => {
-  // Obtenemos YYYY-MM-DD de Argentina
   const fechaString = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
   return new Date(`${fechaString}T00:00:00.000Z`);
 };
 
 const formatearHora = (horaInput: string, fechaInput: string) => {
-  // 1. Nos aseguramos de tener solo HH:mm (por si el front manda un ISO)
   let limpia = horaInput.includes('T') ? horaInput.split('T')[1].substring(0, 5) : horaInput;
-  
-  // 2. Creamos la fecha final forzando UTC con la "Z"
-  // Esto hace que si elegiste 19:30, se guarde como 19:30 UTC.
   const fechaIsoString = `${fechaInput}T${limpia}:00.000Z`;
   
   return {
@@ -41,7 +37,7 @@ export async function GET(req: Request) {
 
     const turnos = await prisma.turnos.findMany({
       where: { id_comercio: Number(idComercio) },
-      orderBy: { hora: 'asc' }, // Ordenar por hora para la agenda
+      orderBy: { hora: 'asc' },
       include: { clientes: { select: { nombre_cliente: true, whatsapp: true } } }
     });
 
@@ -58,12 +54,10 @@ export async function POST(req: Request) {
     const idComercio = body.id_comercio || body.idComercio;
     const { nombre_invitado, contacto_invitado, fecha, servicio, hora } = body;
 
-    // Usamos el helper para clavar la hora elegida
     const { objHora, strHora } = formatearHora(hora, fecha);
-    
-    // Fecha para la columna 'fecha' (día), la ponemos al mediodía para evitar saltos
     const fechaFinal = new Date(`${fecha}T12:00:00.000Z`);
 
+    // Upsert cliente
     const cliente = await prisma.clientes.upsert({
       where: { 
         id_comercio_whatsapp: { 
@@ -83,6 +77,7 @@ export async function POST(req: Request) {
         });
     });
 
+    // Crear turno
     const nuevoTurno = await prisma.turnos.create({
       data: {
         id_comercio: Number(idComercio),
@@ -96,26 +91,38 @@ export async function POST(req: Request) {
       }
     });
 
+    console.log("✅ Turno creado en DB. Iniciando proceso de notificación...");
+
     // Notificación Telegram
     const comercio = await prisma.comercios.findUnique({
       where: { id_comercio: Number(idComercio) },
-      select: { telegramChatId: true }
+      select: { telegramChatId: true, nombre_empresa: true }
     });
 
+    // IMPORTANTE: Agregamos el AWAIT para que Vercel no mate la función antes de enviar el mensaje
     if (comercio?.telegramChatId) {
-      enviarNotificacionTelegram({
-        chatId: comercio.telegramChatId,
-        nombre: nombre_invitado,
-        fecha: new Date(fecha).toLocaleDateString("es-AR"),
-        hora: strHora,
-        servicio: servicio
-      });
+      console.log(`📱 Enviando notificación a Telegram (ChatID: ${comercio.telegramChatId})`);
+      try {
+        await enviarNotificacionTelegram({
+          chatId: comercio.telegramChatId,
+          nombre: nombre_invitado,
+          fecha: new Date(fecha).toLocaleDateString("es-AR"),
+          hora: strHora,
+          servicio: servicio || "Corte"
+        });
+        console.log("📧 Notificación enviada con éxito.");
+      } catch (errTelegram) {
+        console.error("❌ Falló el envío de Telegram, pero el turno se creó:", errTelegram);
+      }
+    } else {
+      console.log("⚠️ El comercio no tiene vinculado un Telegram (telegramChatId es null).");
     }
 
     return NextResponse.json(nuevoTurno);
-  } catch (error) {
-    console.error("Error en POST:", error);
-    return NextResponse.json({ message: "Error" }, { status: 500 });
+
+  } catch (error: any) {
+    console.error("🔥 Error en POST de Turnos:", error.message);
+    return NextResponse.json({ message: "Error interno" }, { status: 500 });
   }
 }
 
@@ -123,14 +130,11 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    
-    // 1. Desestructuramos TODO lo que puede venir del front
     const { 
       id_turno, 
       estado, 
       monto, 
       metodoPago,
-      // 👇 Agregamos estos campos para la edición
       nombre_invitado,
       servicio,
       hora,
@@ -138,22 +142,15 @@ export async function PUT(req: Request) {
       contacto_invitado,
     } = body;
 
-    console.log("🛠️ ACTUALIZANDO TURNO:", id_turno, body); // Un log para ver qué llega
-
     const turnoActualizado = await prisma.turnos.update({
       where: { id_turno: Number(id_turno) },
       data: {
-        // Lógica de Estado/Pago (lo que ya tenías)
         estado: estado || undefined,
         monto: monto ? Number(monto) : undefined,
         metodo_pago: metodoPago || undefined,
-
-        // 👇 Lógica de Edición de Datos (LO NUEVO)
-        // Usamos "|| undefined" para que si no mandás el dato, no lo borre ni lo toque
         nombre_invitado: nombre_invitado || undefined,
         servicio: servicio || undefined,
         hora: hora ? new Date(`1970-01-01T${hora}:00Z`) : undefined,
-        // Ojo con la fecha: Prisma suele pedir objeto Date o string ISO válido
         fecha: fecha ? new Date(fecha) : undefined, 
         contacto_invitado: contacto_invitado || undefined,
       },
@@ -161,7 +158,6 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(turnoActualizado);
   } catch (error) {
-    console.error("❌ Error al actualizar turno:", error);
     return NextResponse.json({ message: "Error al actualizar" }, { status: 500 });
   }
 }
