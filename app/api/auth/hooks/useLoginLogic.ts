@@ -3,18 +3,14 @@ import { useState } from "react"
 type LoginMode = 'login' | 'recovery'
 
 export function useLoginLogic(onLoginSuccess: () => void) {
-    // Datos
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
-    
-    // Estados de UI
     const [mode, setMode] = useState<LoginMode>('login')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [shake, setShake] = useState(false)
     const [resetSent, setResetSent] = useState(false)
 
-    // Helper de Animación
     const triggerShake = () => {
         setShake(true)
         setTimeout(() => setShake(false), 500)
@@ -38,28 +34,18 @@ export function useLoginLogic(onLoginSuccess: () => void) {
             })
             
             const data = await res.json()
-            console.log("🔍 RESPUESTA API LOGIN:", data) // <--- ESTO ES ORO
 
             if (res.ok) {
-                // 👇 ACÁ ESTABA EL ERROR POTENCIAL
-                // Si la API devuelve { user: {...} }, usamos data.user.
-                // Si la API devuelve el objeto directo {...}, usamos data.
                 const usuarioAGuardar = data.user || data 
-
-                // Guardamos
                 localStorage.setItem("usuario_clipp", JSON.stringify(usuarioAGuardar))
-                
-                // Un pequeño delay para asegurar que se guardó antes de redirigir
                 setTimeout(() => {
                     onLoginSuccess() 
                 }, 100)
-                
             } else {
-                setError(res.status === 401 ? "Email o contraseña incorrectos" : data.message)
+                setError(res.status === 401 ? "Email o contraseña incorrectos" : (data.message || "Error al iniciar sesión"))
                 triggerShake()
             }
         } catch (error) {
-            console.error(error)
             setError("Error de conexión.")
             triggerShake()
         } finally {
@@ -69,14 +55,14 @@ export function useLoginLogic(onLoginSuccess: () => void) {
 
     // --- ACCIÓN 2: RECUPERAR CLAVE ---
     const handleResetPassword = async () => {
+        setError(null) // 👈 Limpiamos errores previos antes de empezar
         if (!email) {
             setError("Ingresá tu email para continuar")
             triggerShake()
             return
         }
+        
         setLoading(true)
-        setError(null)
-
         try {
             const res = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
@@ -84,10 +70,12 @@ export function useLoginLogic(onLoginSuccess: () => void) {
                 body: JSON.stringify({ email })
             })
 
+            const data = await res.json() // 👈 Movido arriba para usarlo en ambos casos
+
             if (res.ok) {
                 setResetSent(true)
             } else {
-                const data = await res.json()
+                // 🔴 ACÁ RECIBE EL 404 DE "NO ENCONTRAMOS NINGUNA CUENTA"
                 setError(data.message || "No pudimos procesar la solicitud")
                 triggerShake()
             }
@@ -100,12 +88,10 @@ export function useLoginLogic(onLoginSuccess: () => void) {
     }
 
     return {
-        // Valores
         email, setEmail,
         password, setPassword,
         mode, setMode,
         loading, error, shake, resetSent, setResetSent,
-        // Acciones
         handleSubmit: mode === 'login' ? handleLogin : handleResetPassword,
         setError
     }
