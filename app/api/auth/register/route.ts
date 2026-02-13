@@ -36,32 +36,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- 1. GENERAMOS EL SLUG PRIMERO ---
-    // Lo necesitamos ahora para poder chequear si ya existe en la DB
+    // --- 1. PRIMERA VERIFICACIÓN: EL EMAIL ---
+    // Si el email ya está, cortamos acá mismo.
+    const emailExistente = await prisma.comercios.findUnique({
+      where: { email_unico: data.email },
+    });
+
+    if (emailExistente) {
+      return NextResponse.json(
+        { message: "Ese email ya está registrado. Probá iniciar sesión." },
+        { status: 409 }
+      );
+    }
+
+    // --- 2. SEGUNDA VERIFICACIÓN: EL NOMBRE (SLUG) ---
+    // Si el email está libre, recién ahora procesamos el nombre.
     let slugFinal = generarSlug(data.nombre);
     if (!slugFinal) {
       slugFinal = `comercio-${crypto.randomBytes(4).toString('hex')}`;
     }
 
-    // --- 2. CHEQUEO DOBLE PREVENTIVO (Email y Slug) ---
-    // Usamos findFirst con OR para capturar cualquiera de los dos conflictos
-    const usuarioExistente = await prisma.comercios.findFirst({
-      where: {
-        OR: [
-          { email_unico: data.email },
-          { slug: slugFinal }
-        ]
-      },
+    const slugExistente = await prisma.comercios.findUnique({
+      where: { slug: slugFinal },
     });
 
-    if (usuarioExistente) {
-      const esEmail = usuarioExistente.email_unico === data.email;
+    if (slugExistente) {
       return NextResponse.json(
-        { 
-          message: esEmail 
-            ? "Ese email ya está registrado." 
-            : "Ese nombre de barbería ya está en uso. Probá agregando tu ciudad (ej: Boy Cut Banfield)." 
-        },
+        { message: "El nombre de esta barbería ya está en uso. Probá agregando tu ciudad (ej: Boy Cut Lanús)." },
         { status: 409 }
       );
     }
@@ -109,7 +110,6 @@ export async function POST(request: Request) {
       console.log("Email enviado exitosamente a:", data.email);
     } catch (mailError) {
       console.error("Error de Resend:", mailError);
-      // No frenamos el proceso aquí, el usuario ya se creó.
     }
 
     return NextResponse.json({
@@ -120,10 +120,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error registrando usuario:", error);
     
-    // Fallback por si algo se escapó al findFirst (Error de unicidad en Prisma)
     if ((error as any).code === 'P2002') {
       return NextResponse.json(
-        { message: "Ya existe un comercio con ese nombre/slug o email." },
+        { message: "Ya existe un registro con esos datos (email o nombre)." },
         { status: 409 }
       );
     }
