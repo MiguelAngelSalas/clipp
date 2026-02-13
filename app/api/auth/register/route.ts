@@ -4,35 +4,30 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Resend } from 'resend';
 
-// Inicializamos Resend con la Key de tu .env
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // --- 1. FUNCIÓN HELPER PARA CREAR SLUGS ---
 function generarSlug(nombre: string) {
   return nombre
-    .toLowerCase()             // A minúsculas
-    .trim()                    // Chau espacios bordes
-    .replace(/\s+/g, '-')      // Espacios -> Guiones
-    .replace(/[^\w\-]+/g, '')  // Borrar caracteres raros (tildes, emojis)
-    .replace(/\-\-+/g, '-');   // Evitar guiones dobles
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-');
 }
 
 export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    // --- 0. EL PATOVICA DIGITAL (VALIDACIÓN DE EMAIL) 👮‍♂️🛑 ---
-    // Si el email no tiene formato real (algo@dominio.com), lo rebotamos acá.
-    // Esto ahorra plata y espacio en la base de datos.
+    // --- 0. VALIDACIÓN DE FORMATO DE EMAIL ---
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
     if (!data.email || !emailRegex.test(data.email)) {
       return NextResponse.json(
         { message: "El email ingresado no es válido. Revisalo por favor." },
         { status: 400 }
       );
     }
-    // -----------------------------------------------------------
 
     if (!data.nombre || !data.password) {
       return NextResponse.json(
@@ -41,48 +36,57 @@ export async function POST(request: Request) {
       );
     }
 
-    const usuarioExistente = await prisma.comercios.findUnique({
-      where: { email_unico: data.email },
-    });
-
-    if (usuarioExistente) {
-      return NextResponse.json(
-        { message: "Ese email ya está registrado" },
-        { status: 409 }
-      );
-    }
-
-    // --- 2. GENERAMOS EL SLUG ANTES DE GUARDAR ---
+    // --- 1. GENERAMOS EL SLUG PRIMERO ---
+    // Lo necesitamos ahora para poder chequear si ya existe en la DB
     let slugFinal = generarSlug(data.nombre);
-    
-    // Si el nombre era muy raro (ej: "???") y quedó vacío, inventamos uno
     if (!slugFinal) {
       slugFinal = `comercio-${crypto.randomBytes(4).toString('hex')}`;
     }
 
+    // --- 2. CHEQUEO DOBLE PREVENTIVO (Email y Slug) ---
+    // Usamos findFirst con OR para capturar cualquiera de los dos conflictos
+    const usuarioExistente = await prisma.comercios.findFirst({
+      where: {
+        OR: [
+          { email_unico: data.email },
+          { slug: slugFinal }
+        ]
+      },
+    });
+
+    if (usuarioExistente) {
+      const esEmail = usuarioExistente.email_unico === data.email;
+      return NextResponse.json(
+        { 
+          message: esEmail 
+            ? "Ese email ya está registrado." 
+            : "Ese nombre de barbería ya está en uso. Probá agregando tu ciudad (ej: Boy Cut Banfield)." 
+        },
+        { status: 409 }
+      );
+    }
+
+    // --- 3. PREPARACIÓN DE DATOS ---
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // --- 3. GUARDAMOS EN BASE DE DATOS ---
+    // --- 4. GUARDADO EN BASE DE DATOS ---
     const nuevoComercio = await prisma.comercios.create({
       data: {
         nombre_empresa: data.nombre,
         slug: slugFinal,
         email_unico: data.email,
         contrasena: hashedPassword,
-        telefono_unico: data.telefono, // 👈 AGREGAMOS ESTO
+        telefono_unico: data.telefono,
         verificationToken: verificationToken,
         emailVerificado: false,
       },
     });
 
-    // Construimos el link
+    // --- 5. ENVÍO DE EMAIL ---
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clipp.com.ar";
     const linkVerificacion = `${baseUrl}/verify-email?token=${verificationToken}`;
 
-    console.log("Intentando enviar mail a:", data.email);
-
-    // --- ENVÍO REAL ---
     try {
       await resend.emails.send({
         from: 'Clipp <notificaciones@clipp.com.ar>', 
@@ -102,9 +106,10 @@ export async function POST(request: Request) {
           </div>
         `
       });
-      console.log("Email enviado exitosamente");
+      console.log("Email enviado exitosamente a:", data.email);
     } catch (mailError) {
       console.error("Error de Resend:", mailError);
+      // No frenamos el proceso aquí, el usuario ya se creó.
     }
 
     return NextResponse.json({
@@ -114,13 +119,15 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error("Error registrando usuario:", error);
-    // Si el error es por slug duplicado (código P2002 de Prisma)
+    
+    // Fallback por si algo se escapó al findFirst (Error de unicidad en Prisma)
     if ((error as any).code === 'P2002') {
-         return NextResponse.json(
+      return NextResponse.json(
         { message: "Ya existe un comercio con ese nombre/slug o email." },
         { status: 409 }
       );
     }
+
     return NextResponse.json(
       { message: "Error interno del servidor" },
       { status: 500 }
