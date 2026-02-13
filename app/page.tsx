@@ -85,18 +85,14 @@ export default function Home() {
       const data = await res.json();
 
       if (res.ok) {
-        // 🟢 ÉXITO: Retornamos true y el hijo muestra la vista del sobrecito
+        // 🟢 ÉXITO
         return true; 
       } else {
-        // 🔴 ERROR: En lugar de alert, retornamos el mensaje de error
-        if (res.status === 409) {
-          return "Este email ya está registrado";
-        }
+        // 🔴 ERROR: Dejamos que el Backend decida el mensaje (Email o Slug)
         return data.message || "Hubo un error en el registro";
       }
     } catch (error) { 
       console.error("Error de registro:", error);
-      // 🟠 ERROR DE RED
       return "Error de conexión. Verificá tu internet.";
     }
   }
