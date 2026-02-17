@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { useEffect } from "react"
 import { Leaf, Facebook, Instagram, Twitter } from "lucide-react"
 
 interface LandingPageProps {
   onIngresar: () => void
-  onRegisterClick: () => void 
+  onRegisterClick: () => void
+  onNosotrosClick: () => void // Nueva prop para la sección de Daiana
   idComercio?: number
 }
 
@@ -15,7 +17,28 @@ const THEME = {
   border: "border-migue",
 }
 
-export function LandingPage({ onIngresar, onRegisterClick }: LandingPageProps) {
+export function LandingPage({ onIngresar, onRegisterClick, onNosotrosClick }: LandingPageProps) {
+  
+  // --- LÓGICA PARA EL BOTÓN ATRÁS DE CHROME ---
+  useEffect(() => {
+    // Marcamos la entrada en el historial
+    window.history.pushState({ vista: 'landing' }, '')
+
+    const handlePopState = () => {
+      // Si el usuario vuelve atrás, nos aseguramos de estar en la raíz
+      if (window.location.pathname !== '/') {
+        window.location.href = '/'
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+  // ------------------------------------------
+
   return (
     <div className={`min-h-screen ${THEME.bg} font-sans flex flex-col items-center justify-between p-8`}>
       
@@ -36,7 +59,10 @@ export function LandingPage({ onIngresar, onRegisterClick }: LandingPageProps) {
             Soy Dueño (Ingresar)
           </button>
           
-          <button className={`border ${THEME.border} py-3 text-sm uppercase tracking-widest ${THEME.text} hover:bg-black/5 transition-colors`}>
+          <button 
+            onClick={onNosotrosClick} // Conectado a la nueva vista
+            className={`border ${THEME.border} py-3 text-sm uppercase tracking-widest ${THEME.text} hover:bg-black/5 transition-colors`}
+          >
             Acerca de nosotros
           </button>
       </div>
@@ -52,7 +78,7 @@ export function LandingPage({ onIngresar, onRegisterClick }: LandingPageProps) {
               </div>
           </div>
 
-          {/* BOTONES DE ACCIÓN (SOLO LOGIN) */}
+          {/* BOTONES DE ACCIÓN */}
           <div className="flex flex-col gap-6 w-full max-w-md text-center">
               
               <button 
