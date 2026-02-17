@@ -18,10 +18,17 @@ export function useAgendaLogic(usuario: any) {
     })
     const [turnoEditando, setTurnoEditando] = useState<any>(null)
 
-    // Helpers
-    const idComercio = usuario?.id_comercio || usuario?.id
-    const tieneSuscripcion = usuario?.suscrito ?? false
-    const nombreBarberia = usuario?.nombre || "Mi Barbería"
+    // --- HELPERS DINÁMICOS ---
+    // Usamos useMemo para que si el objeto 'usuario' cambia (desde el Home), 
+    // estos valores se recalculen al toque.
+    const { idComercio, tieneSuscripcion, nombreBarberia } = useMemo(() => {
+        return {
+            idComercio: usuario?.id_comercio || usuario?.id,
+            // 🛡️ Chequeo ultra-flexible de suscripción
+            tieneSuscripcion: usuario?.suscrito === true || usuario?.suscrito === 1 || usuario?.suscrito === "true",
+            nombreBarberia: usuario?.nombre_empresa || usuario?.nombre || "Mi Barbería"
+        }
+    }, [usuario]) // <--- Importante: se dispara cuando cambia el usuario
 
     // --- 1. CARGA DE DATOS ---
     const cargarDatos = useCallback(async () => {
@@ -50,10 +57,14 @@ export function useAgendaLogic(usuario: any) {
 
     // --- 2. GESTIÓN DE MODALES ---
     const abrirModal = (tipo: keyof typeof modals, data?: any) => {
+        // 🚨 ACÁ ESTABA EL BLOQUEO:
+        // Si el usuario ya está suscrito, ignoramos el bloqueo de suscripción
         if ((tipo === 'nuevoTurno' || tipo === 'cobro') && !tieneSuscripcion) {
+            console.log("Bloqueo por suscripción activado");
             setModals(prev => ({ ...prev, suscripcion: true }))
             return
         }
+        
         if (tipo === 'nuevoTurno') setTurnoEditando(data || null)
         setModals(prev => ({ ...prev, [tipo]: true }))
     }
@@ -110,7 +121,6 @@ export function useAgendaLogic(usuario: any) {
         }, "¡Turno finalizado!");
     }
 
-    // Nueva función para cancelar (la que te pedía AgendaView)
     const onCancelarTurno = async (idTurno: number) => {
         await ejecutarAccion('/api/turnos', 'PUT', {
             id_turno: idTurno,
@@ -125,10 +135,10 @@ export function useAgendaLogic(usuario: any) {
         return turnos.filter(t => String(t.fecha).startsWith(ISO))
     }, [date, turnos])
 
-    // --- 5. RETURN (Sincronizado con AgendaView) ---
+    // --- 5. RETURN ---
     return {
         date, setDate,
-        turnos,          // <--- Lo agregamos (para el CalendarWidget)
+        turnos,
         turnosDelDia,
         extrasDelDia: extras,
         loading,
@@ -138,7 +148,9 @@ export function useAgendaLogic(usuario: any) {
         guardarTurno, 
         registrarCobro, 
         finalizarTurno,
-        onCancelarTurno, // <--- Lo agregamos (para el ScheduleList)
-        recargar: cargarDatos
+        onCancelarTurno,
+        recargar: cargarDatos,
+        // Agregamos esto para debuguear en el componente si hace falta
+        tieneSuscripcion 
     }
 }
