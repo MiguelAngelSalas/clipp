@@ -20,7 +20,7 @@ export function useAgendaLogic(usuario: any) {
 
     // Helpers
     const idComercio = usuario?.id_comercio || usuario?.id
-    const tieneSuscripcion = usuario?.suscrito ?? true
+    const tieneSuscripcion = usuario?.suscrito ?? false
     const nombreBarberia = usuario?.nombre || "Mi Barbería"
 
     // --- 1. CARGA DE DATOS ---
