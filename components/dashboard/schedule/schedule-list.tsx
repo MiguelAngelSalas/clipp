@@ -38,19 +38,27 @@ export function ScheduleList({
   const handleNotify = (turno: any) => {
     const telefono = turno.contacto_invitado || turno.clientes?.whatsapp;
     const nombre = turno.nombre_invitado || turno.clientes?.nombre_cliente;
-    const { hora, id_turno, servicio } = turno;
+    const { id_turno, servicio } = turno;
     
     if (!telefono) {
       toast.error("El cliente no tiene teléfono registrado");
       return;
     }
 
+    // Limpiamos el número por si tiene espacios o guiones
     const numeroLimpio = telefono.replace(/\D/g, ''); 
+    
+    // Si el número no tiene código de país, le agregamos el de Argentina por defecto
+    const numeroFinal = numeroLimpio.length === 10 ? `549${numeroLimpio}` : numeroLimpio;
+
     const urlConfirmacion = `${window.location.origin}/confirmar/${id_turno}`;
     const mensaje = `¡Hola *${nombre}*! 💈 Confirmamos tu turno de *${servicio || 'Peluquería'}* el día *${fechaCapitalizada}*. Confirmá acá: ${urlConfirmacion}`;
 
-    window.open(`https://web.whatsapp.com/send?phone=${numeroLimpio}&text=${encodeURIComponent(mensaje)}`, 'whatsapp_web');
-    toast.info("Abriendo WhatsApp Web...");
+    // 🔥 CAMBIO CLAVE: "clipp_whatsapp" en lugar de "whatsapp_web"
+    // Esto hace que siempre se abra en la MISMA pestaña de al lado.
+    window.open(`https://web.whatsapp.com/send?phone=${numeroFinal}&text=${encodeURIComponent(mensaje)}`, 'clipp_whatsapp');
+    
+    toast.info("Enviando a la pestaña de WhatsApp...");
   };
 
   return (
