@@ -40,7 +40,8 @@ export async function POST(request: Request) {
         id: usuario.id_comercio,
         nombre: usuario.nombre_empresa,
         email: usuario.email_unico,
-        emailVerificado: usuario.emailVerificado, // Agregamos esto para el Front
+        emailVerificado: usuario.emailVerificado,
+        suscrito: usuario.suscrito, // 🔥 ¡FALTABA ESTE CAMPEÓN!
         slug: usuario.nombre_empresa.toLowerCase().replace(/\s+/g, '-')
       }
     });
