@@ -12,9 +12,10 @@ interface ScheduleListProps {
   turnosDelDia: any[]      
   onAddExtra: () => void   
   onEditTurno: (turno: any) => void
-  // --- ESTO ES LO QUE FALTABA 👇 ---
   onFinalizarTurno: (id: number, monto: number, metodo: string) => Promise<void>
   onCancelarTurno: (id: number) => Promise<void>
+  // --- AGREGAMOS ESTA PARA LA CONFIRMACIÓN MANUAL ---
+  onConfirmarTurno: (id: number) => Promise<void>
 }
 
 export function ScheduleList({ 
@@ -23,7 +24,8 @@ export function ScheduleList({
   onAddExtra, 
   onEditTurno,
   onFinalizarTurno,
-  onCancelarTurno 
+  onCancelarTurno,
+  onConfirmarTurno // 👈 La recibimos acá
 }: ScheduleListProps) {
   
   const [turnoACobrar, setTurnoACobrar] = React.useState<any>(null)
@@ -45,19 +47,13 @@ export function ScheduleList({
       return;
     }
 
-    // Limpiamos el número por si tiene espacios o guiones
     const numeroLimpio = telefono.replace(/\D/g, ''); 
-    
-    // Si el número no tiene código de país, le agregamos el de Argentina por defecto
     const numeroFinal = numeroLimpio.length === 10 ? `549${numeroLimpio}` : numeroLimpio;
 
     const urlConfirmacion = `${window.location.origin}/confirmar/${id_turno}`;
     const mensaje = `¡Hola *${nombre}*! 💈 Confirmamos tu turno de *${servicio || 'Peluquería'}* el día *${fechaCapitalizada}*. Confirmá acá: ${urlConfirmacion}`;
 
-    // 🔥 CAMBIO CLAVE: "clipp_whatsapp" en lugar de "whatsapp_web"
-    // Esto hace que siempre se abra en la MISMA pestaña de al lado.
     window.open(`https://web.whatsapp.com/send?phone=${numeroFinal}&text=${encodeURIComponent(mensaje)}`, 'clipp_whatsapp');
-    
     toast.info("Enviando a la pestaña de WhatsApp...");
   };
 
@@ -88,9 +84,10 @@ export function ScheduleList({
                             key={turno.id_turno}
                             turno={turno}
                             onEdit={onEditTurno}
-                            onCancel={() => onCancelarTurno(turno.id_turno)} // 👈 Llama al hook
+                            onCancel={() => onCancelarTurno(turno.id_turno)}
                             onFinalizar={(t) => setTurnoACobrar(t)}
-                            onNotify={() => handleNotify(turno)} 
+                            onNotify={() => handleNotify(turno)}
+                            onConfirm={() => onConfirmarTurno(turno.id_turno)} // 🔥 PASAMOS LA NUEVA PROP
                         />
                     ))}
                 </div>
@@ -109,7 +106,6 @@ export function ScheduleList({
         onOpenChange={(open) => !open && setTurnoACobrar(null)}
         turno={turnoACobrar}
         onConfirm={async (monto, metodo) => { 
-            // Aquí 'monto' y 'metodo' ya vienen del modal
             await onFinalizarTurno(turnoACobrar.id_turno, monto, metodo); 
             setTurnoACobrar(null);
         }}

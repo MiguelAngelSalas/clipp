@@ -18,17 +18,13 @@ export function useAgendaLogic(usuario: any) {
     })
     const [turnoEditando, setTurnoEditando] = useState<any>(null)
 
-    // --- HELPERS DINÁMICOS ---
-    // Usamos useMemo para que si el objeto 'usuario' cambia (desde el Home), 
-    // estos valores se recalculen al toque.
     const { idComercio, tieneSuscripcion, nombreBarberia } = useMemo(() => {
         return {
             idComercio: usuario?.id_comercio || usuario?.id,
-            // 🛡️ Chequeo ultra-flexible de suscripción
             tieneSuscripcion: usuario?.suscrito === true || usuario?.suscrito === 1 || usuario?.suscrito === "true",
             nombreBarberia: usuario?.nombre_empresa || usuario?.nombre || "Mi Barbería"
         }
-    }, [usuario]) // <--- Importante: se dispara cuando cambia el usuario
+    }, [usuario])
 
     // --- 1. CARGA DE DATOS ---
     const cargarDatos = useCallback(async () => {
@@ -57,10 +53,7 @@ export function useAgendaLogic(usuario: any) {
 
     // --- 2. GESTIÓN DE MODALES ---
     const abrirModal = (tipo: keyof typeof modals, data?: any) => {
-        // 🚨 ACÁ ESTABA EL BLOQUEO:
-        // Si el usuario ya está suscrito, ignoramos el bloqueo de suscripción
         if ((tipo === 'nuevoTurno' || tipo === 'cobro') && !tieneSuscripcion) {
-            console.log("Bloqueo por suscripción activado");
             setModals(prev => ({ ...prev, suscripcion: true }))
             return
         }
@@ -128,6 +121,14 @@ export function useAgendaLogic(usuario: any) {
         }, "Turno cancelado");
     }
 
+    // 🔥 NUEVA ACCIÓN: Confirmación Manual
+    const onConfirmarTurno = async (idTurno: number) => {
+        await ejecutarAccion('/api/turnos', 'PUT', {
+            id_turno: idTurno,
+            estado: 'confirmado'
+        }, "Turno confirmado");
+    }
+
     // --- 4. DATA COMPUTADA ---
     const turnosDelDia = useMemo(() => {
         if (!date) return []
@@ -149,8 +150,8 @@ export function useAgendaLogic(usuario: any) {
         registrarCobro, 
         finalizarTurno,
         onCancelarTurno,
+        onConfirmarTurno, // 🔥 Lo devolvemos acá para que AgendaView lo vea
         recargar: cargarDatos,
-        // Agregamos esto para debuguear en el componente si hace falta
         tieneSuscripcion 
     }
 }

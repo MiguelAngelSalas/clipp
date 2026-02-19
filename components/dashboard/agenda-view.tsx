@@ -17,7 +17,6 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
     const logic = useAgendaLogic(usuario)
     
     // 2. Desestructuramos lo necesario. 
-    // NOTA: 'recargar' es el nombre que usamos en el hook para 'cargarTurnos'
     const { 
         date, 
         setDate, 
@@ -26,7 +25,8 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
         abrirModal, 
         nombreBarberia, 
         finalizarTurno,
-        onCancelarTurno 
+        onCancelarTurno,
+        onConfirmarTurno // 🔥 IMPORTANTE: Sacamos esta función del hook
     } = logic
 
     return (
@@ -82,16 +82,15 @@ export function AgendaView({ usuario, onLogout, onUpdateUser }: any) {
                             turnosDelDia={turnosDelDia} 
                             onAddExtra={() => abrirModal('nuevoTurno')}
                             onEditTurno={(turno) => abrirModal('nuevoTurno', turno)}
-                            // Aquí conectamos las funciones de acción del hook
                             onFinalizarTurno={finalizarTurno}
                             onCancelarTurno={onCancelarTurno}
+                            onConfirmarTurno={onConfirmarTurno} // 🔥 AHORA SÍ: Pasamos la prop
                         />
                     </div>
                 </div>
             </main>
 
             {/* --- GRUPO DE MODALES --- */}
-            {/* Le pasamos 'logic' entero para que los modales tengan acceso a todo el estado */}
             <AgendaModals logic={logic} usuario = {usuario} />
         </div>
     )

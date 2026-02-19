@@ -43,9 +43,10 @@ interface TurnoCardProps {
   onCancel: (id: number) => void
   onFinalizar: (turno: any) => void
   onNotify: () => void 
+  onConfirm: () => void // 🔥 Nueva prop para confirmación manual
 }
 
-export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify }: TurnoCardProps) {
+export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onConfirm }: TurnoCardProps) {
 
   const nombreParaMostrar = turno.nombre_invitado || turno.clientes?.nombre_cliente || "Cliente Anónimo";
   
@@ -59,7 +60,6 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify }: Tu
       {/* IZQUIERDA: HORA Y DATOS */}
       <div className="flex items-center gap-4">
         <div className={`${THEME.accentGreen} min-w-[64px] py-3 rounded-md text-center text-sm font-bold shadow-sm`}>
-          {/* 🛠️ SOLUCIÓN ANTIBUGS: Cortamos el texto directamente para evitar desfase de 3hs */}
           {typeof turno.hora === 'string' && turno.hora.includes('T') 
             ? turno.hora.split('T')[1].substring(0, 5) 
             : formatTimeDisplay(turno.hora) 
@@ -102,16 +102,30 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify }: Tu
         {turno.estado !== 'finalizado' && turno.estado !== 'cancelado' && (
           <>
             {turno.estado === 'pendiente' && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                title="Notificar por WhatsApp"
-                className="border-green-500 text-green-600 hover:bg-green-50 h-8 px-3"
-                onClick={onNotify}
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Notificar
-              </Button>
+              <>
+                {/* BOTÓN CONFIRMAR MANUAL */}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  title="Confirmar Turno"
+                  className="border-blue-500 text-blue-600 hover:bg-blue-50 h-8 px-3"
+                  onClick={onConfirm}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Confirmar
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  title="Notificar por WhatsApp"
+                  className="border-green-500 text-green-600 hover:bg-green-50 h-8 px-3"
+                  onClick={onNotify}
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Notificar
+                </Button>
+              </>
             )}
 
             <Button 
