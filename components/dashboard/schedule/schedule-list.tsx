@@ -53,7 +53,7 @@ export function ScheduleList({
     const urlConfirmacion = `${window.location.origin}/confirmar/${id_turno}`;
     const mensaje = `¡Hola *${nombre}*! 💈 Confirmamos tu turno de *${servicio || 'Peluquería'}* el día *${fechaCapitalizada}*. Confirmá acá: ${urlConfirmacion}`;
 
-    window.open(`https://web.whatsapp.com/send?phone=${numeroFinal}&text=${encodeURIComponent(mensaje)}`, 'clipp_whatsapp');
+    window.open(`https://api.whatsapp.com/send?phone=${numeroFinal}&text=${encodeURIComponent(mensaje)}`, 'clipp_whatsapp');
     toast.info("Enviando a la pestaña de WhatsApp...");
   };
 
