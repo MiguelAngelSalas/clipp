@@ -116,7 +116,7 @@ export default function AppMenu({
           <MenubarItem className={estiloItem} onClick={onConfigClick}>
               <Settings className="mr-2 h-4 w-4 opacity-70" /> Configuración
           </MenubarItem>
-          <MenubarItem className={estiloItem} onClick={onServicesClick}>
+          <MenubarItem className={estiloItem} onClick={()=>alert("Estamos trabajando en ello")}>
               <Settings className="mr-2 h-4 w-4 opacity-70" /> Servicios
           </MenubarItem>
           <MenubarSeparator className="bg-migue-gris/20" />
