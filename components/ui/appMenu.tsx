@@ -26,6 +26,7 @@ interface AppMenuProps {
   onConfigClick?: () => void 
   onLogoutClick?: () => void 
   onShareClick?: () => void
+  onServicesClick?: () => void
   idComercio?: number 
 }
 
@@ -35,6 +36,7 @@ export default function AppMenu({
   onConfigClick, 
   onLogoutClick,
   onShareClick,
+  onServicesClick,
   idComercio 
 }: AppMenuProps) {
   
@@ -82,14 +84,16 @@ export default function AppMenu({
           </MenubarItem>
         </MenubarContent>
       </MenubarMenu>
-
+      
       {/* MENÚ MI NEGOCIO */}
       <MenubarMenu>
         <MenubarTrigger className="cursor-pointer text-migue-gris hover:bg-migue-beige rounded px-3 py-1 transition-colors data-[state=open]:bg-migue-beige">
             Mi Negocio
         </MenubarTrigger>
         <MenubarContent className={estiloMenu}>
-          
+          <MenubarItem>
+
+          </MenubarItem>
           <MenubarItem className={estiloItem} onClick={onShareClick}>
               <Share2 className="mr-2 h-4 w-4 text-blue-500" /> Compartir Link
           </MenubarItem>
@@ -111,6 +115,9 @@ export default function AppMenu({
 
           <MenubarItem className={estiloItem} onClick={onConfigClick}>
               <Settings className="mr-2 h-4 w-4 opacity-70" /> Configuración
+          </MenubarItem>
+          <MenubarItem className={estiloItem} onClick={onServicesClick}>
+              <Settings className="mr-2 h-4 w-4 opacity-70" /> Servicios
           </MenubarItem>
           <MenubarSeparator className="bg-migue-gris/20" />
           <MenubarItem className={estiloItem} onClick={onLogoutClick}>

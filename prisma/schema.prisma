@@ -7,6 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model servicios {
+  id_servicio  Int       @id @default(autoincrement())
+  id_comercio  Int
+  nombre       String    @db.VarChar(100)
+  precio       Decimal   @db.Decimal(10, 2)
+  duracion     Int       @default(30) // Duración en minutos
+  activo       Boolean   @default(true) 
+
+  // Relaciones
+  comercios    comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade)
+  turnos       turnos[]
+
+  @@index([id_comercio])
+}
+
 model clientes {
   id_cliente     Int       @id @default(autoincrement())
   id_comercio    Int
@@ -53,17 +68,19 @@ model comercios {
   
   // --- ESTA ES LA LÍNEA QUE FALTABA 👇 ---
   movimientos_caja    movimientos_caja[]
+  servicios           servicios[]
 }
 
 model turnos {
   id_turno          Int             @id @default(autoincrement())
   id_comercio       Int
   id_cliente        Int?
+  id_servicio       Int?
   
   nombre_invitado   String?         @db.VarChar(100)
   contacto_invitado String?         @db.VarChar(50)
   
-  servicio          String          @db.VarChar(100)
+  servicio_nombre   String          @db.VarChar(100)
   fecha             DateTime        @db.Date
   hora              DateTime        @db.Time(0)
   estado            turnos_estado?  @default(pendiente)
@@ -77,9 +94,10 @@ model turnos {
   
   comercios         comercios       @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "turnos_ibfk_1")
   clientes          clientes?       @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction, map: "turnos_ibfk_2")
-
+  servicios         servicios?      @relation(fields: [id_servicio], references: [id_servicio], onDelete: SetNull, onUpdate: NoAction, map: "turnos_ibfk_3" )
   @@index([id_cliente], map: "id_cliente")
   @@index([id_comercio], map: "id_comercio")
+  @@index([id_servicio], map:"id_servicio")
 }
 
 model movimientos_caja {

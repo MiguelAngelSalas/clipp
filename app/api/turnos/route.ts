@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enviarNotificacionTelegram } from "@/lib/telegram";
+import { Prisma } from "@prisma/client";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +13,9 @@ const getInicioDelDiaArg = () => {
 
 const formatearHora = (horaInput: string, fechaInput: string) => {
   let limpia = horaInput.includes('T') ? horaInput.split('T')[1].substring(0, 5) : horaInput;
-  const fechaIsoString = `${fechaInput}T${limpia}:00.000Z`;
   
   return {
-    objHora: new Date(fechaIsoString),
+    objHora: limpia, // Para Prisma Time(0) solo necesitamos el string HH:MM
     strHora: limpia
   };
 };
@@ -43,6 +43,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(turnos);
   } catch (error) {
+    console.error(" Error en GET de turnos:", error);
     return NextResponse.json({ message: "Error" }, { status: 500 });
   }
 }
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const idComercio = body.id_comercio || body.idComercio;
-    const { nombre_invitado, contacto_invitado, fecha, servicio, hora } = body;
+    const { nombre_invitado, contacto_invitado, fecha, id_servicio, servicio, hora } = body;
 
     const { objHora, strHora } = formatearHora(hora, fecha);
     const fechaFinal = new Date(`${fecha}T12:00:00.000Z`);
@@ -77,21 +78,32 @@ export async function POST(req: Request) {
         });
     });
 
-    // Crear turno
+    // Buscamos la info del servicio en la DB si mandaron un ID
+    let infoServicio: any = null;
+    if (id_servicio) {
+      infoServicio = await prisma.servicios.findUnique({
+        where: { id_servicio: Number(id_servicio) }
+      });
+    }
+
+    // Crear turno adaptado al nuevo schema
     const nuevoTurno = await prisma.turnos.create({
       data: {
         id_comercio: Number(idComercio),
         id_cliente: cliente?.id_cliente,
+        id_servicio: infoServicio?.id_servicio || undefined,
+        servicio_nombre: infoServicio?.nombre || servicio || "Corte",
+        monto: infoServicio?.precio ? new Prisma.Decimal(infoServicio.precio.toString()) : new Prisma.Decimal(0),
         nombre_invitado,
         contacto_invitado,
-        servicio: servicio || "Corte",
         fecha: fechaFinal,
-        hora: objHora, 
+        // 👇 El truco para Prisma conservando tu lógica de strings HH:MM
+        hora: new Date(`1970-01-01T${objHora}:00.000Z`), 
         estado: "pendiente"
       }
     });
 
-    console.log("✅ Turno creado en DB. Iniciando proceso de notificación...");
+    console.log(" Turno creado en DB. Iniciando proceso de notificación...");
 
     // Notificación Telegram
     const comercio = await prisma.comercios.findUnique({
@@ -99,29 +111,28 @@ export async function POST(req: Request) {
       select: { telegramChatId: true, nombre_empresa: true }
     });
 
-    // IMPORTANTE: Agregamos el AWAIT para que Vercel no mate la función antes de enviar el mensaje
     if (comercio?.telegramChatId) {
-      console.log(`📱 Enviando notificación a Telegram (ChatID: ${comercio.telegramChatId})`);
+      console.log(` Enviando notificación a Telegram (ChatID: ${comercio.telegramChatId})`);
       try {
         await enviarNotificacionTelegram({
           chatId: comercio.telegramChatId,
           nombre: nombre_invitado,
           fecha: new Date(fecha).toLocaleDateString("es-AR"),
           hora: strHora,
-          servicio: servicio || "Corte"
+          servicio: nuevoTurno.servicio_nombre
         });
-        console.log("📧 Notificación enviada con éxito.");
+        console.log(" Notificación enviada con éxito.");
       } catch (errTelegram) {
-        console.error("❌ Falló el envío de Telegram, pero el turno se creó:", errTelegram);
+        console.error(" Falló el envío de Telegram, pero el turno se creó:", errTelegram);
       }
     } else {
-      console.log("⚠️ El comercio no tiene vinculado un Telegram (telegramChatId es null).");
+      console.log(" El comercio no tiene vinculado un Telegram (telegramChatId es null).");
     }
 
     return NextResponse.json(nuevoTurno);
 
   } catch (error: any) {
-    console.error("🔥 Error en POST de Turnos:", error.message);
+    console.error(" Error en POST de Turnos:", error.message);
     return NextResponse.json({ message: "Error interno" }, { status: 500 });
   }
 }
@@ -136,7 +147,8 @@ export async function PUT(req: Request) {
       monto, 
       metodoPago,
       nombre_invitado,
-      servicio,
+      id_servicio,
+      servicio_nombre,
       hora,
       fecha,
       contacto_invitado,
@@ -146,11 +158,13 @@ export async function PUT(req: Request) {
       where: { id_turno: Number(id_turno) },
       data: {
         estado: estado || undefined,
-        monto: monto ? Number(monto) : undefined,
+        monto: monto ? new Prisma.Decimal(monto.toString()) : undefined,
         metodo_pago: metodoPago || undefined,
         nombre_invitado: nombre_invitado || undefined,
-        servicio: servicio || undefined,
-        hora: hora ? new Date(`1970-01-01T${hora}:00Z`) : undefined,
+        id_servicio: id_servicio ? Number(id_servicio) : undefined,
+        servicio_nombre: servicio_nombre || undefined,
+        // 👇 El mismo truco para Prisma en el update
+        hora: hora ? new Date(`1970-01-01T${hora.substring(0, 5)}:00.000Z`) : undefined, 
         fecha: fecha ? new Date(fecha) : undefined, 
         contacto_invitado: contacto_invitado || undefined,
       },
@@ -158,6 +172,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(turnoActualizado);
   } catch (error) {
+    console.error("🔥 Error en PUT de turnos:", error);
     return NextResponse.json({ message: "Error al actualizar" }, { status: 500 });
   }
 }

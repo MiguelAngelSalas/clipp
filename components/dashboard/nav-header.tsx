@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import AppMenu from "@/components/ui/appMenu"
 import { ArrowLeft } from "lucide-react"
 import { ConfigModal } from "@/components/dashboard/config-modal"
+import { ServiciosModal } from "@/components/dashboard/servicios-modal"
+import { set } from "date-fns"
 
 interface NavHeaderProps {
   onNuevoTurno: () => void
@@ -23,7 +25,8 @@ export function NavHeader({
 }: NavHeaderProps) {
   
   const [isConfigOpen, setIsConfigOpen] = React.useState(false)
-
+  
+  const [isServicesOpen, setServicesOpen] = React.useState(false)
   // --- DEBUG PARA EL MATE ---
   // Si en la consola ves que el ID no aparece, es porque el objeto 'usuario' viene distinto
   React.useEffect(() => {
@@ -65,6 +68,7 @@ export function NavHeader({
               onConfigClick={() => setIsConfigOpen(true)} 
               onLogoutClick={onVolver}
               onShareClick={handleShare} 
+              onServicesClick={() => {console.log("Click, evento encontrado"); setServicesOpen(true)}}
               // 👇 PASAMOS EL ID BLINDADO ACÁ
               idComercio={idParaTelegram} 
             />
@@ -80,6 +84,11 @@ export function NavHeader({
           usuario={usuario}
           onUpdate={onUpdateUser}
         />
+        <ServiciosModal>
+          open={isServicesOpen}
+          onOpenChange={setServicesOpen}
+          idComercio={idParaTelegram}
+        </ServiciosModal>
     </div>
   )
 }

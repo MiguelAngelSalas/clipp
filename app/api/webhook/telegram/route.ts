@@ -43,7 +43,7 @@ export async function POST(req: Request) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: chatId,
-              text: `¡Vinculación exitosa! Soy el bot de ${comercio.nombre_empresa}.`
+              text: `¡Vinculación exitosa! Soy el bot de Clipp.`
             }),
           });
           console.log("📧 Mensaje de éxito enviado a Telegram");
