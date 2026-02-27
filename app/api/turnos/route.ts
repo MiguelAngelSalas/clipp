@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const idComercio = body.id_comercio || body.idComercio;
-    const { nombre_invitado, contacto_invitado, fecha, id_servicio, servicio, hora } = body;
+    const { nombre_invitado, contacto_invitado, fecha, id_servicio, servicio, hora, origen } = body;
 
     const { objHora, strHora } = formatearHora(hora, fecha);
     const fechaFinal = new Date(`${fecha}T12:00:00.000Z`);
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
       select: { telegramChatId: true, nombre_empresa: true }
     });
 
-    if (comercio?.telegramChatId) {
+    if (comercio?.telegramChatId && origen !== "dashboard") {
       console.log(` Enviando notificación a Telegram (ChatID: ${comercio.telegramChatId})`);
       try {
         await enviarNotificacionTelegram({

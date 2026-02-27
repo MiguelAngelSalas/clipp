@@ -94,7 +94,8 @@ export function useAgendaLogic(usuario: any) {
         const body = { 
             ...datos, 
             id_comercio: Number(idComercio),
-            fecha: method === 'POST' ? date?.toLocaleDateString('en-CA') : datos.fecha 
+            fecha: method === 'POST' ? date?.toLocaleDateString('en-CA') : datos.fecha ,
+            origen : "dashboard" // Indicamos que el origen es el dashboard para evitar notificaciones Telegram al editar desde acá
         };
         const ok = await ejecutarAccion('/api/turnos', method, body, "Turno guardado");
         if (ok) cerrarModal('nuevoTurno');

@@ -8,12 +8,13 @@ export async function PATCH(request: Request) {
 
     if (!id) return NextResponse.json({ error: "ID faltante" }, { status: 400 });
 
-    await prisma.turnos.update({
+    const turnoActualizado = await prisma.turnos.update({
       where: { id_turno: Number(id) },
       data: { estado: 'confirmado' },
+      include:{comercios:{select:{nombre_empresa:true}}}
     });
 
-    return NextResponse.json({ message: "Turno confirmado" });
+    return NextResponse.json({turnoActualizado});
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Error de DB" }, { status: 500 });
