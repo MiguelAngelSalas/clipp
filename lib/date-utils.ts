@@ -37,3 +37,19 @@ export const formatTimeDisplay = (dateIso: string | Date) => {
     return "--:--";
   }
 };
+
+export function horaAMinutos(horaString: string): number {
+  if (!horaString || !horaString.includes(":"))return 0;
+    const [hora, minutos ]= horaString.split(":").map(Number);
+  return (hora*60)+minutos;
+}
+
+export function minutosAHora(minutosTotales:number): string{
+  if(!minutosTotales || minutosTotales<0)return "00:00";
+  const horas = Math.floor(minutosTotales/60);
+  const minutos = minutosTotales %60;
+
+  const horasStr = horas.toString().padStart(2,"0");
+  const minutosStr = minutos.toString().padStart(2,"0");
+  return `${horasStr}:${minutosStr}`;
+}

@@ -5,10 +5,10 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button" 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Loader2, Home } from "lucide-react" 
-import { cn } from "@/lib/utils"
 
 // Componentes modulares
 import { StepCalendar } from "./components/StepCalendar" 
+import { StepService } from "./components/StepService" 
 import { StepTime } from "./components/StepTime"
 import { StepData } from "./components/StepData"
 import { StepSuccess } from "./components/StepSuccess" 
@@ -49,20 +49,19 @@ export default function GuestBookingPage() {
 // --- SUB-COMPONENTE: EL FORMULARIO ---
 function BookingForm({ idComercio, slug }: { idComercio: number, slug: string }) {
   const router = useRouter()
-  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1)
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4 | 5>(1)
 
-  // El hook ahora tiene todo lo necesario para hablar con el backend
   const { 
-    comercio, loadingData, submitting,
+    comercio, servicios, loadingData, submitting,
     date, setDate, selectedTime, setSelectedTime,
     nombre, setNombre, telefono, setTelefono,
+    selectedServicio, setSelectedServicio,
     horariosPosibles, getHorariosLibres, reservarTurno 
   } = useGuestBooking(idComercio)
 
   const handleConfirmar = async () => {
     const exito = await reservarTurno()
-    if (exito) setStep(4)
-    // El error ya lo maneja el hook con un toast o alert interno
+    if (exito) setStep(5)
   }
 
   if (loadingData) return <LoadingState />
@@ -70,8 +69,7 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
   return (
     <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4">
       
-      {/* Botón Home - Solo si no terminó la reserva */}
-      {step !== 4 && (
+      {step !== 5 && (
         <Button 
           variant="ghost" 
           onClick={() => router.push(`/${slug}`)} 
@@ -83,20 +81,20 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
 
       <Card className="w-full max-w-2xl shadow-xl border-0 bg-white/90 backdrop-blur-sm">
         <CardHeader className="text-center border-b border-gray-50 pb-6">
-          <ProgressIndicator step={step} />
+          <ProgressIndicator step={step} total={4} />
           <CardTitle className="font-serif text-3xl text-[#3A3A3A] mt-4">
             {comercio?.nombre_empresa || "Barbería"}
           </CardTitle>
           <CardDescription className="text-base font-medium text-[#7A9A75]">
             {step === 1 && "1. Elegí el día"}
-            {step === 2 && "2. Elegí la hora"}
-            {step === 3 && "3. Dejanos tu nombre"}
-            {step === 4 && "¡Todo listo!"}
+            {step === 2 && "2. ¿Qué te vas a hacer?"}
+            {step === 3 && "3. Elegí la hora"}
+            {step === 4 && "4. Completá tus datos"}
+            {step === 5 && "¡Turno Confirmado!"}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="pt-8">
-          {/* PASO 1: CALENDARIO */}
           {step === 1 && (
             <StepCalendar 
               date={date} 
@@ -105,34 +103,46 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
             />
           )}
 
-          {/* PASO 2: HORARIOS */}
-          {step === 2 && date && (
+          {step === 2 && (
+            <StepService 
+              servicios={servicios}
+              selectedServicio={selectedServicio}
+              onSelect={(srv: any) => { 
+                setSelectedServicio(srv); 
+                setStep(3); 
+              }}
+              onBack={() => setStep(1)}
+            />
+          )}
+
+          {step === 3 && date && (
             <StepTime 
               date={date} 
               selectedTime={selectedTime} 
               horariosPosibles={horariosPosibles} 
               horariosLibres={getHorariosLibres(date)} 
-              onSelect={setSelectedTime} 
-              onBack={() => { setStep(1); setSelectedTime(null); }} 
-              onContinue={() => setStep(3)} 
+              onSelect={(time: string) => {
+                setSelectedTime(time);
+                setStep(4);
+              }} 
+              onBack={() => setStep(2)} 
             />
           )}
 
-          {/* PASO 3: DATOS DEL CLIENTE */}
-          {step === 3 && date && (
+          {step === 4 && date && (
             <StepData 
               date={date} 
               selectedTime={selectedTime}
               nombre={nombre} setNombre={setNombre}
               telefono={telefono} setTelefono={setTelefono}
-              onBack={() => setStep(2)}
+              servicioElegido={selectedServicio} 
+              onBack={() => setStep(3)}
               onConfirm={handleConfirmar}
               loading={submitting}
             />
           )}
 
-          {/* PASO 4: ÉXITO */}
-          {step === 4 && (
+          {step === 5 && (
             <StepSuccess 
               date={date} 
               time={selectedTime}
@@ -146,18 +156,16 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
   )
 }
 
-// --- COMPONENTES AUXILIARES DE ESTADO ---
-
-function ProgressIndicator({ step }: { step: number }) {
+// --- INDICADOR DE PROGRESO SIN LA FUNCIÓN CN ---
+function ProgressIndicator({ step, total = 4 }: { step: number, total?: number }) {
   return (
     <div className="flex justify-center gap-2 mb-2">
-      {[1, 2, 3].map(s => (
+      {Array.from({ length: total }).map((_, i) => (
         <div 
-          key={s} 
-          className={cn(
-            "h-1.5 w-10 rounded-full transition-all duration-500", 
-            step >= s ? "bg-[#7A9A75]" : "bg-gray-100"
-          )} 
+          key={i} 
+          className={`h-1.5 w-10 rounded-full transition-all duration-500 ${
+            step > i ? "bg-[#7A9A75]" : "bg-gray-100"
+          }`} 
         />
       ))}
     </div>

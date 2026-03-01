@@ -20,6 +20,7 @@ model servicios {
   turnos       turnos[]
 
   @@index([id_comercio])
+  @@unique([id_comercio, nombre])
 }
 
 model clientes {

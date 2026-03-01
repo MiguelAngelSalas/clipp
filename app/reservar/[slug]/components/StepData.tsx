@@ -57,28 +57,6 @@ export function StepData({
             }} 
           />
         </div>
-
-        {/* SELECTOR DE SERVICIO CON TEXTO MÁS CHICO Y "OPCIONAL" */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between items-center px-1">
-            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">Servicio</span>
-            <span className="text-[11px] text-gray-400 italic">Opcional</span>
-          </div>
-          <div className="relative">
-            <Scissors className="absolute left-4 top-3.5 h-5 w-5 text-gray-400 z-10" />
-            <Select value={servicio} onValueChange={setServicio}>
-              <SelectTrigger className="pl-12 h-12 text-base border-gray-200 focus:ring-[#7A9A75] bg-white text-black">
-                <SelectValue placeholder="¿Qué servicio te hacés?" />
-              </SelectTrigger>
-              <SelectContent className="bg-white text-black border-gray-200">
-                <SelectItem value="Corte de Pelo">Corte de Pelo</SelectItem>
-                <SelectItem value="Corte y Barba">Corte y Barba</SelectItem>
-                <SelectItem value="Barba">Solo Barba</SelectItem>
-                <SelectItem value="Cejas">Perfilado de Cejas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
       </div>
 
       <Button 

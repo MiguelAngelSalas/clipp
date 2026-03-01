@@ -17,7 +17,8 @@ import {
   LogOut, 
   PlusCircle,
   Share2,
-  Send 
+  Send,
+  Scissors
 } from "lucide-react"
 
 interface AppMenuProps {
@@ -116,8 +117,8 @@ export default function AppMenu({
           <MenubarItem className={estiloItem} onClick={onConfigClick}>
               <Settings className="mr-2 h-4 w-4 opacity-70" /> Configuración
           </MenubarItem>
-          <MenubarItem className={estiloItem} onClick={()=>alert("Estamos trabajando en ello")}>
-              <Settings className="mr-2 h-4 w-4 opacity-70" /> Servicios
+          <MenubarItem className={estiloItem} onSelect={onServicesClick}>
+              <Scissors className="mr-2 h-4 w-4 opacity-70" /> Servicios
           </MenubarItem>
           <MenubarSeparator className="bg-migue-gris/20" />
           <MenubarItem className={estiloItem} onClick={onLogoutClick}>

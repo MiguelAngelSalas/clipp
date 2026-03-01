@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Phone, User, DollarSign } from "lucide-react" 
+import { Loader2, Phone, User, DollarSign, Scissors } from "lucide-react" 
 import { cn } from "@/lib/utils"
 import { useNuevoTurnoLogic } from "@/components/ui/hooks/useNuevoTurnoLogic"
 
@@ -14,10 +14,7 @@ interface NuevoTurnoModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   date: Date | undefined
-  
-  // 👇 ACÁ ESTABA EL ERROR: Le cambié el nombre a 'turnos' para que coincida
   turnos: any[] 
-  
   turnoAEditar?: any 
   onGuardar: (datos: any) => Promise<void>
   usuario: any 
@@ -35,6 +32,45 @@ export function NuevoTurnoModal(props: NuevoTurnoModalProps) {
     horariosDinamicos,
     handleGuardar, estaOcupado
   } = useNuevoTurnoLogic(props)
+
+  // --- ESTADOS Y LÓGICA PARA LOS SERVICIOS ---
+  const [listaServicios, setListaServicios] = React.useState<any[]>([])
+  const [cargandoServicios, setCargandoServicios] = React.useState(false)
+
+  React.useEffect(() => {
+    // Buscamos si el ID viene como id_comercio o simplemente como id
+    const idDelComercio = props.usuario?.id_comercio || props.usuario?.id;
+
+    if (props.open && idDelComercio) {
+      const cargarServicios = async () => {
+        setCargandoServicios(true)
+        try {
+          const res = await fetch(`/api/servicios?id_comercio=${idDelComercio}`)
+          if (res.ok) {
+            const data = await res.json()
+            setListaServicios(data)
+          }
+        } catch (error) {
+          console.error("Error cargando servicios en modal:", error)
+        } finally {
+          setCargandoServicios(false)
+        }
+      }
+      cargarServicios()
+    }
+  }, [props.open, props.usuario])
+
+  // Función que se dispara cuando se elige un servicio del Select
+  const handleServicioChange = (nombreServicio: string) => {
+    // Buscamos el servicio en nuestra lista por nombre
+    const servicioElegido = listaServicios.find(s => s.nombre === nombreServicio)
+    
+    setServicio(nombreServicio) // Guardamos el nombre
+    
+    if (servicioElegido) {
+      setMonto(servicioElegido.precio.toString()) // Autocompletamos el precio
+    }
+  }
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -103,12 +139,46 @@ export function NuevoTurnoModal(props: NuevoTurnoModalProps) {
                         </div>
                     </div>
 
-                    {/* FILA 2: SERVICIO */}
-                    <Input 
-                        placeholder="Servicio (ej: Corte y Barba)" 
-                        value={servicio} onChange={(e) => setServicio(e.target.value)} 
-                        className="bg-white border-migue/20 w-full" 
-                    />
+                    {/* FILA 2: SERVICIO (SELECT DINÁMICO) */}
+                    <div className="relative">
+                      {cargandoServicios ? (
+                        <div className="flex items-center justify-center h-10 bg-white border border-migue/20 rounded-md">
+                           <Loader2 className="h-4 w-4 text-gray-400 animate-spin mr-2" />
+                           <span className="text-sm text-gray-500">Cargando catálogo...</span>
+                        </div>
+                      ) : (
+                        <Select value={servicio} onValueChange={handleServicioChange}>
+                            <SelectTrigger className="bg-white border-migue/20 text-migue-gris w-full h-10 focus:ring-[#7A9A75]">
+                                <div className="flex items-center gap-2">
+                                  <Scissors className="h-4 w-4 text-gray-400" />
+                                  <SelectValue placeholder="Seleccionar servicio..." />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-2 border-[#3D2B1F]/10 shadow-xl z-[9999] max-h-[200px]">
+                                {listaServicios.length === 0 ? (
+                                    <div className="p-3 text-sm text-gray-500 text-center italic">
+                                      No hay servicios cargados.
+                                    </div>
+                                ) : (
+                                    listaServicios.map((srv) => (
+                                        <SelectItem 
+                                          key={srv.id_servicio} 
+                                          value={srv.nombre} 
+                                          className="cursor-pointer focus:bg-[#7A9A75]/10 py-3"
+                                        >
+                                          <div className="flex justify-between w-full pr-4 items-center">
+                                            <span className="font-medium">{srv.nombre}</span>
+                                            <span className="text-[#7A9A75] font-bold text-xs ml-4">
+                                              ${Number(srv.precio).toLocaleString('es-AR')}
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
+                      )}
+                    </div>
 
                     {/* FILA 3: PRECIO Y MÉTODO DE PAGO */}
                     <div className="grid grid-cols-2 gap-4">
@@ -117,7 +187,8 @@ export function NuevoTurnoModal(props: NuevoTurnoModalProps) {
                             <Input 
                                 type="number" 
                                 placeholder="Precio" 
-                                value={monto} onChange={(e) => setMonto(e.target.value)} 
+                                value={monto} 
+                                onChange={(e) => setMonto(e.target.value)} 
                                 className="bg-white pl-9 border-migue/20 font-bold text-migue-gris" 
                             />
                         </div>

@@ -14,7 +14,8 @@ export function useAgendaLogic(usuario: any) {
         nuevoTurno: false,
         resumen: false,
         cobro: false,
-        suscripcion: false
+        suscripcion: false,
+        servicios: false,
     })
     const [turnoEditando, setTurnoEditando] = useState<any>(null)
 

@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import AppMenu from "@/components/ui/appMenu"
 import { ArrowLeft } from "lucide-react"
 import { ConfigModal } from "@/components/dashboard/config-modal"
-import { ServiciosModal } from "@/components/dashboard/servicios-modal"
+import { ServiciosModal } from "@/components/dashboard/ServiciosModal"
 import { set } from "date-fns"
+import {toast}  from "sonner"
 
 interface NavHeaderProps {
   onNuevoTurno: () => void
@@ -44,7 +45,7 @@ export function NavHeader({
     }
     const url = `${window.location.origin}/${slug}`
     navigator.clipboard.writeText(url)
-    alert(`¡Link copiado!\n\n${url}`)
+    toast.success(`¡Comparti el link de la turnera!\n\n${url}`)
   }
 
   return (
@@ -68,7 +69,7 @@ export function NavHeader({
               onConfigClick={() => setIsConfigOpen(true)} 
               onLogoutClick={onVolver}
               onShareClick={handleShare} 
-              onServicesClick={() => {console.log("Click, evento encontrado"); setServicesOpen(true)}}
+              onServicesClick={() => {console.log("¡LLEGÓ EL CLIC AL PADRE!"); setServicesOpen(true)}}
               // 👇 PASAMOS EL ID BLINDADO ACÁ
               idComercio={idParaTelegram} 
             />
@@ -84,11 +85,11 @@ export function NavHeader({
           usuario={usuario}
           onUpdate={onUpdateUser}
         />
-        <ServiciosModal>
+        <ServiciosModal
           open={isServicesOpen}
           onOpenChange={setServicesOpen}
           idComercio={idParaTelegram}
-        </ServiciosModal>
+        />
     </div>
   )
 }
