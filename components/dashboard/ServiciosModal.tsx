@@ -91,7 +91,7 @@ export function ServiciosModal({ open, onOpenChange, idComercio, onServicioAgreg
         cancelarEdicion()
         cargarServicios()
       } else {
-        toast.error(resData.error || "Error al procesar la solicitud.")
+        toast.error(resData.error || "Error al guardar el servicio.")
       }
     } catch (error) {
       toast.error("Error de conexión al servidor")

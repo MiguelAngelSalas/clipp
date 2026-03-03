@@ -1,14 +1,25 @@
 "use client"
 
 import * as React from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription // 👈 Importante para el fix
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DollarSign, Tag } from "lucide-react"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
+import { Tag } from "lucide-react"
 
-// 1. CORRECCIÓN: Renombramos a 'onGuardar' para que coincida con lo que manda el Padre
 interface RegistrarCobroModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -31,12 +42,11 @@ export function RegistrarCobroModal({ open, onOpenChange, onGuardar }: Registrar
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    // 2. LÓGICA: Traducimos los datos ACÁ MISMO antes de enviarlos
-    // Así tu AgendaModals queda limpio.
+    // Si guarda pero sigue diciendo "Venta varios", es porque 'concepto' llega vacío acá
     onGuardar({
       monto: parseFloat(monto),
-      descripcion: concepto, // Mapeamos: concepto (visual) -> descripcion (BD)
-      metodo: metodo === "EFECTIVO" ? "EFECTIVO" : "DIGITAL", // Simplificamos la lógica
+      descripcion: concepto.trim(), 
+      metodo: metodo,
     })
     
     onOpenChange(false)
@@ -49,6 +59,10 @@ export function RegistrarCobroModal({ open, onOpenChange, onGuardar }: Registrar
           <DialogTitle className="text-2xl font-[1000] text-[#3D2B1F] text-center">
             REGISTRAR COBRO
           </DialogTitle>
+          {/* 👈 FIX: Agregamos el Description dentro del Header para silenciar el Warning */}
+          <DialogDescription className="text-center text-gray-500 text-xs">
+            Ingresá el detalle de la venta manual para el cierre de caja.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
@@ -59,7 +73,7 @@ export function RegistrarCobroModal({ open, onOpenChange, onGuardar }: Registrar
               <Input 
                 type="number" 
                 placeholder="0.00"
-                step="0.01" // Agregado para permitir decimales cómodamente
+                step="0.01"
                 className="pl-8 h-12 text-lg font-bold border-migue/20 focus-visible:ring-[#7A9A75]"
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
@@ -77,7 +91,7 @@ export function RegistrarCobroModal({ open, onOpenChange, onGuardar }: Registrar
                 placeholder="Ej: Cera Mate, Gaseosa..." 
                 className="pl-10 h-12 border-migue/20 focus-visible:ring-[#7A9A75]"
                 value={concepto}
-                onChange={(e) => setConcepto(e.target.value)}
+                onChange={(e) => setConcepto(e.target.value)} 
                 required
               />
             </div>
@@ -90,13 +104,13 @@ export function RegistrarCobroModal({ open, onOpenChange, onGuardar }: Registrar
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-white border-2 border-[#3D2B1F]/10 shadow-xl z-[9999]">
-                <SelectItem value="EFECTIVO" className="cursor-pointer focus:bg-[#7A9A75]/10 font-medium">
+                <SelectItem value="EFECTIVO" className="cursor-pointer font-medium">
                   Efectivo
                 </SelectItem>
-                <SelectItem value="TRANSFERENCIA" className="cursor-pointer focus:bg-[#7A9A75]/10 font-medium">
+                <SelectItem value="TRANSFERENCIA" className="cursor-pointer font-medium">
                   Transferencia
                 </SelectItem>
-                <SelectItem value="TARJETA" className="cursor-pointer focus:bg-[#7A9A75]/10 font-medium">
+                <SelectItem value="TARJETA" className="cursor-pointer font-medium">
                   Tarjeta
                 </SelectItem>
               </SelectContent>
