@@ -37,14 +37,19 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     else cancelarEdicion()
   }, [open, cargarEmpleados])
 
-  // --- 🛠️ FIX PARA REPETIR FOTO ---
+  // --- 🛠️ HANDLE FILE CHANGE (FIX CELULAR) ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setArchivoFoto(file)
-      setPreview(URL.createObjectURL(file))
-      // IMPORTANTE: Limpiamos el valor del input para que si tocamos 
-      // de nuevo la misma foto, el 'onChange' se vuelva a disparar.
+      
+      // Usamos FileReader en lugar de URL.createObjectURL para que el celu no pierda la imagen
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
       e.target.value = "" 
     }
   }
@@ -91,7 +96,12 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       method: "POST",
       body: formData
     })
-    if (!res.ok) throw new Error("Error en Cloudinary")
+    
+    if (!res.ok) {
+      const errorData = await res.json()
+      throw new Error(errorData.error?.message || "Error en Cloudinary")
+    }
+    
     const data = await res.json()
     return data.secure_url 
   }
@@ -125,9 +135,13 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         toast.success(editandoId ? "Actualizado" : "Registrado")
         cancelarEdicion()
         cargarEmpleados()
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Error en la API");
       }
-    } catch (error) {
-      toast.error("Error al procesar")
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Error al procesar");
     } finally {
       setCargando(false)
     }
@@ -194,7 +208,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                       type="button"
                       onClick={() => setServiciosSeleccionados(prev => isSelected ? prev.filter(x => x !== s.id_servicio) : [...prev, s.id_servicio])}
                       className={`px-4 py-2 rounded-xl text-[10px] font-black border ${
-                          isSelected ? "bg-[#3D2B1F] text-white" : "bg-white text-gray-400 border-gray-100"
+                          isSelected ? "bg-[#3D2B1F] text-white border-[#3D2B1F]" : "bg-white text-gray-400 border-gray-100"
                       }`}
                     >
                       {s.nombre}
