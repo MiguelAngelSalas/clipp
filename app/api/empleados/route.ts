@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const nuevoEmpleado = await prisma.empleados.create({
       data: {
         nombre,
-        foto_url,
+        foto_url: foto_url || null, // Aseguramos que si no hay, guarde null
         id_comercio: Number(id_comercio),
         servicios: {
           connect: serviciosIds?.map((id: number) => ({ id_servicio: id })) || []
@@ -69,8 +69,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ message: "Falta id_empleado" }, { status: 400 });
     }
 
-    // Usamos update para poner activo: false en lugar de delete
-    // Esto es para que los turnos viejos no queden huérfanos
     await prisma.empleados.update({
       where: { id_empleado: Number(id_empleado) },
       data: { activo: false }
@@ -82,11 +80,12 @@ export async function DELETE(request: Request) {
   }
 }
 
-// --- ACTUALIZAR EMPLEADO ---
+// --- ACTUALIZAR EMPLEADO (CORREGIDO ✅) ---
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id_empleado, nombre, serviciosIds } = body;
+    // 👈 Agregamos foto_url que antes no estaba en el PUT
+    const { id_empleado, nombre, foto_url, serviciosIds } = body;
 
     if (!id_empleado) {
       return NextResponse.json({ message: "Falta id_empleado" }, { status: 400 });
@@ -96,6 +95,7 @@ export async function PUT(request: Request) {
       where: { id_empleado: Number(id_empleado) },
       data: {
         nombre: nombre,
+        foto_url: foto_url, // 👈 Ahora Prisma sí va a guardar la URL de la foto al editar
         servicios: {
           // 'set' reemplaza todas las conexiones anteriores por estas nuevas
           set: serviciosIds?.map((id: number) => ({ id_servicio: id })) || []
@@ -106,6 +106,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(empleadoActualizado);
   } catch (error: any) {
+    console.error("Error al actualizar empleado:", error);
     return NextResponse.json({ message: "Error al actualizar", error: error.message }, { status: 500 });
   }
 }
