@@ -85,40 +85,52 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   };
 
   const subirACloudinary = async (file: File) => {
-    const formData = new FormData()
-    const archivoOptimizado = await comprimirImagen(file);
-    formData.append("file", archivoOptimizado)
-    formData.append("upload_preset", UPLOAD_PRESET)
-    const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
-    formData.append("folder", carpetaDestino)
+    alert("1. Iniciando subida. Archivo: " + file.name + " Size: " + file.size);
+    
+    try {
+      const formData = new FormData()
+      const archivoOptimizado = await comprimirImagen(file);
+      alert("2. Imagen comprimida con éxito");
 
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: "POST",
-      body: formData
-    })
-    
-    if (!res.ok) {
-      const errorData = await res.json()
-      throw new Error(errorData.error?.message || "Error en Cloudinary")
+      formData.append("file", archivoOptimizado)
+      formData.append("upload_preset", UPLOAD_PRESET)
+      const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
+      formData.append("folder", carpetaDestino)
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: formData
+      })
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        alert("3. Error Cloudinary: " + JSON.stringify(errData));
+        throw new Error("Error en Cloudinary");
+      }
+      
+      const data = await res.json()
+      alert("4. Subida exitosa! URL: " + data.secure_url);
+      return data.secure_url 
+    } catch (err: any) {
+      alert("ERROR EN SUBIDA: " + err.message);
+      throw err;
     }
-    
-    const data = await res.json()
-    return data.secure_url 
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nombre || cargando) return
     
+    alert("5. Click en Registrar. ID Comercio: " + idComercio);
     setCargando(true)
     let urlFinal = fotoUrl;
 
     try {
       if (archivoFoto) {
-        toast.info("Subiendo foto...")
         urlFinal = await subirACloudinary(archivoFoto)
       }
 
+      alert("6. Mandando a la API de Clipp...");
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -132,16 +144,16 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        toast.success(editandoId ? "Actualizado" : "Registrado")
+        alert("7. ¡TODO GUARDADO!");
+        toast.success("Éxito")
         cancelarEdicion()
         cargarEmpleados()
       } else {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Error en la API");
+        const apiErr = await res.text();
+        alert("8. Error API Clipp: " + apiErr);
       }
     } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "Error al procesar");
+      alert("9. Error General: " + error.message);
     } finally {
       setCargando(false)
     }
