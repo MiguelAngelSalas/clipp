@@ -15,7 +15,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   const [nombre, setNombre] = React.useState("")
   const [fotoUrl, setFotoUrl] = React.useState("") 
   const [preview, setPreview] = React.useState("") 
-  const [archivoFoto, setArchivoFoto] = React.useState<File | Blob | null>(null)
+  const [archivoFoto, setArchivoFoto] = React.useState<File | null>(null)
   const [serviciosSeleccionados, setServiciosSeleccionados] = React.useState<number[]>([])
   const [cargando, setCargando] = React.useState(false)
   const [listaEmpleados, setListaEmpleados] = React.useState<any[]>([])
@@ -37,8 +37,28 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     else cancelarEdicion()
   }, [open, cargarEmpleados])
 
-  // --- 🛠️ FUNCIÓN DE COMPRESIÓN INMEDIATA ---
-  const comprimirImagen = (file: File | Blob): Promise<string> => {
+  // --- 🛠️ FIX PARA REPETIR FOTO ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setArchivoFoto(file)
+      setPreview(URL.createObjectURL(file))
+      // IMPORTANTE: Limpiamos el valor del input para que si tocamos 
+      // de nuevo la misma foto, el 'onChange' se vuelva a disparar.
+      e.target.value = "" 
+    }
+  }
+
+  const cancelarEdicion = () => {
+    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  const prepararEdicion = (emp: any) => {
+    setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
+  }
+
+  const comprimirImagen = (file: File): Promise<Blob> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -47,52 +67,22 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 600; // La hacemos chiquita para que entre en LocalStorage
+          const MAX_WIDTH = 800;
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad 0.6 para asegurar que pese poco y entre en el disco
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.7);
         };
       };
     });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      try {
-        const base64Optimizada = await comprimirImagen(file);
-        setPreview(base64Optimizada);
-        // 💾 GUARDAMOS EN DISCO YA COMPRIMIDA
-        localStorage.setItem("clipp_foto_temp", base64Optimizada);
-        
-        const res = await fetch(base64Optimizada);
-        const blob = await res.blob();
-        setArchivoFoto(blob);
-      } catch (err) {
-        alert("Error procesando imagen: " + err);
-      }
-      e.target.value = "" 
-    }
-  }
-
-  const cancelarEdicion = () => {
-    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
-    localStorage.removeItem("clipp_foto_temp");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  const prepararEdicion = (emp: any) => {
-    setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
-  }
-
-  const subirACloudinary = async (file: File | Blob) => {
-    alert("3. Enviando a Cloudinary...");
+  const subirACloudinary = async (file: File) => {
     const formData = new FormData()
-    formData.append("file", file)
+    const archivoOptimizado = await comprimirImagen(file);
+    formData.append("file", archivoOptimizado)
     formData.append("upload_preset", UPLOAD_PRESET)
     const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
     formData.append("folder", carpetaDestino)
@@ -101,13 +91,8 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       method: "POST",
       body: formData
     })
-    if (!res.ok) {
-      const errTxt = await res.text();
-      alert("Error Cloudinary: " + errTxt);
-      throw new Error("Error en Cloudinary")
-    }
+    if (!res.ok) throw new Error("Error en Cloudinary")
     const data = await res.json()
-    alert("4. URL Cloudinary OK: " + data.secure_url);
     return data.secure_url 
   }
 
@@ -119,25 +104,11 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     let urlFinal = fotoUrl;
 
     try {
-      let archivoParaSubir = archivoFoto;
-
-      // 🕵️ RESCATE DESDE DISCO (LocalStorage)
-      const fotoEnDisco = localStorage.getItem("clipp_foto_temp");
-      
-      if (!archivoParaSubir && fotoEnDisco) {
-        alert("1. Rescatando imagen desde disco (el celu reinició la memoria)...");
-        const resRescate = await fetch(fotoEnDisco);
-        archivoParaSubir = await resRescate.blob();
-        alert("2. Imagen rescatada con éxito!");
+      if (archivoFoto) {
+        toast.info("Subiendo foto...")
+        urlFinal = await subirACloudinary(archivoFoto)
       }
 
-      if (archivoParaSubir) {
-        urlFinal = await subirACloudinary(archivoParaSubir)
-      } else {
-        alert("Aviso: No hay foto para subir.");
-      }
-
-      alert("5. Guardando barbero en base de datos...");
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,17 +122,12 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        alert("6. ¡ÉXITO! Todo guardado.");
-        localStorage.removeItem("clipp_foto_temp");
-        toast.success("Listo")
+        toast.success(editandoId ? "Actualizado" : "Registrado")
         cancelarEdicion()
         cargarEmpleados()
-      } else {
-        const apiErr = await res.text();
-        alert("Error API Clipp: " + apiErr);
       }
-    } catch (error: any) {
-      alert("Error crítico: " + error.message);
+    } catch (error) {
+      toast.error("Error al procesar")
     } finally {
       setCargando(false)
     }
@@ -187,19 +153,28 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
           <form onSubmit={handleSubmit} className="space-y-6 border-b border-gray-100 pb-8">
             <div className="flex flex-col items-center gap-3">
-                <label className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative active:scale-95 transition-all">
-                    {(preview || fotoUrl) ? (
+                <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative"
+                >
+                    {preview || fotoUrl ? (
                         <img src={preview || fotoUrl} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
                         <Camera className="text-gray-300 w-8 h-8" />
                     )}
-                    <input type="file" onChange={handleFileChange} accept="image/*" className="hidden" />
-                </label>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Toca para cambiar foto</span>
+                </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Toca para cambiar foto</span>
             </div>
 
             <div className="space-y-1">
-              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre del Barbero</Label>
+              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre</Label>
               <Input 
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
@@ -218,8 +193,8 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                       key={s.id_servicio}
                       type="button"
                       onClick={() => setServiciosSeleccionados(prev => isSelected ? prev.filter(x => x !== s.id_servicio) : [...prev, s.id_servicio])}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black border transition-all ${
-                          isSelected ? "bg-[#3D2B1F] text-white border-[#3D2B1F]" : "bg-white text-gray-400 border-gray-100"
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black border ${
+                          isSelected ? "bg-[#3D2B1F] text-white" : "bg-white text-gray-400 border-gray-100"
                       }`}
                     >
                       {s.nombre}
