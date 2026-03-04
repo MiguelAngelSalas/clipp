@@ -47,6 +47,8 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         const base64 = reader.result as string;
         setPreview(base64);
         setBackupBase64(base64);
+        // 💾 Guardamos en disco por si el celu reinicia la pestaña
+        localStorage.setItem("clipp_foto_temp", base64);
       };
       reader.readAsDataURL(file);
       e.target.value = "" 
@@ -55,6 +57,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
   const cancelarEdicion = () => {
     setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setBackupBase64(null); setServiciosSeleccionados([])
+    localStorage.removeItem("clipp_foto_temp");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -116,18 +119,28 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     try {
       let archivoParaSubir: File | Blob | null = archivoFoto;
 
-      // 🕵️ ALERTA DE RESCATE
+      // 🕵️ ESTRATEGIA DE RESCATE (Estado de React)
       if (!archivoParaSubir && backupBase64) {
-        alert("1. El archivo se borró de RAM, intentando rescatar desde el Backup...");
+        alert("1. Rescatando imagen desde Backup Base64 (Estado)...");
         const resBackup = await fetch(backupBase64);
         archivoParaSubir = await resBackup.blob();
         alert("2. Imagen rescatada con éxito!");
+      } 
+      // 🕵️ ESTRATEGIA DE RESCATE (LocalStorage por si se reinició la pestaña)
+      else if (!archivoParaSubir) {
+        const fotoStorage = localStorage.getItem("clipp_foto_temp");
+        if (fotoStorage) {
+          alert("1. Rescatando desde LocalStorage (el celu reinició la pestaña)...");
+          const resBackup = await fetch(fotoStorage);
+          archivoParaSubir = await resBackup.blob();
+          alert("2. Imagen rescatada desde Storage!");
+        }
       }
 
       if (archivoParaSubir) {
         urlFinal = await subirACloudinary(archivoParaSubir)
       } else {
-        alert("Aviso: No hay archivo ni backup, se guarda sin foto.");
+        alert("Aviso: No hay archivo ni backups encontrados. Se guarda sin foto.");
       }
 
       alert("5. Mandando datos a la base de datos...");
@@ -145,6 +158,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
       if (res.ok) {
         alert("6. ¡ÉXITO! Barbero guardado.");
+        localStorage.removeItem("clipp_foto_temp"); // Limpiamos al terminar
         toast.success("Listo")
         cancelarEdicion()
         cargarEmpleados()
@@ -153,7 +167,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         alert("Error API Clipp: " + apiErr);
       }
     } catch (error: any) {
-      alert("Error crítico en handleSubmit: " + error.message);
+      alert("Error crítico: " + error.message);
     } finally {
       setCargando(false)
     }
