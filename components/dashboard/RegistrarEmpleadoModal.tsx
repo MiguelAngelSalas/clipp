@@ -15,8 +15,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   const [nombre, setNombre] = React.useState("")
   const [fotoUrl, setFotoUrl] = React.useState("") 
   const [preview, setPreview] = React.useState("") 
-  const [archivoFoto, setArchivoFoto] = React.useState<File | null>(null)
-  const [backupBase64, setBackupBase64] = React.useState<string | null>(null)
+  const [archivoFoto, setArchivoFoto] = React.useState<File | Blob | null>(null)
   const [serviciosSeleccionados, setServiciosSeleccionados] = React.useState<number[]>([])
   const [cargando, setCargando] = React.useState(false)
   const [listaEmpleados, setListaEmpleados] = React.useState<any[]>([])
@@ -38,34 +37,8 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     else cancelarEdicion()
   }, [open, cargarEmpleados])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setArchivoFoto(file)
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setPreview(base64);
-        setBackupBase64(base64);
-        // 💾 Guardamos en disco por si el celu reinicia la pestaña
-        localStorage.setItem("clipp_foto_temp", base64);
-      };
-      reader.readAsDataURL(file);
-      e.target.value = "" 
-    }
-  }
-
-  const cancelarEdicion = () => {
-    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setBackupBase64(null); setServiciosSeleccionados([])
-    localStorage.removeItem("clipp_foto_temp");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  const prepararEdicion = (emp: any) => {
-    setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
-  }
-
-  const comprimirImagen = (file: File | Blob): Promise<Blob> => {
+  // --- 🛠️ FUNCIÓN DE COMPRESIÓN INMEDIATA ---
+  const comprimirImagen = (file: File | Blob): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -74,23 +47,52 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
+          const MAX_WIDTH = 600; // La hacemos chiquita para que entre en LocalStorage
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.7);
+          // Calidad 0.6 para asegurar que pese poco y entre en el disco
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
       };
     });
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      try {
+        const base64Optimizada = await comprimirImagen(file);
+        setPreview(base64Optimizada);
+        // 💾 GUARDAMOS EN DISCO YA COMPRIMIDA
+        localStorage.setItem("clipp_foto_temp", base64Optimizada);
+        
+        const res = await fetch(base64Optimizada);
+        const blob = await res.blob();
+        setArchivoFoto(blob);
+      } catch (err) {
+        alert("Error procesando imagen: " + err);
+      }
+      e.target.value = "" 
+    }
+  }
+
+  const cancelarEdicion = () => {
+    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
+    localStorage.removeItem("clipp_foto_temp");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  const prepararEdicion = (emp: any) => {
+    setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
+  }
+
   const subirACloudinary = async (file: File | Blob) => {
-    alert("3. Empezando fetch a Cloudinary...");
+    alert("3. Enviando a Cloudinary...");
     const formData = new FormData()
-    const archivoOptimizado = await comprimirImagen(file);
-    formData.append("file", archivoOptimizado)
+    formData.append("file", file)
     formData.append("upload_preset", UPLOAD_PRESET)
     const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
     formData.append("folder", carpetaDestino)
@@ -105,7 +107,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       throw new Error("Error en Cloudinary")
     }
     const data = await res.json()
-    alert("4. Cloudinary OK. URL: " + data.secure_url);
+    alert("4. URL Cloudinary OK: " + data.secure_url);
     return data.secure_url 
   }
 
@@ -117,33 +119,25 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     let urlFinal = fotoUrl;
 
     try {
-      let archivoParaSubir: File | Blob | null = archivoFoto;
+      let archivoParaSubir = archivoFoto;
 
-      // 🕵️ ESTRATEGIA DE RESCATE (Estado de React)
-      if (!archivoParaSubir && backupBase64) {
-        alert("1. Rescatando imagen desde Backup Base64 (Estado)...");
-        const resBackup = await fetch(backupBase64);
-        archivoParaSubir = await resBackup.blob();
+      // 🕵️ RESCATE DESDE DISCO (LocalStorage)
+      const fotoEnDisco = localStorage.getItem("clipp_foto_temp");
+      
+      if (!archivoParaSubir && fotoEnDisco) {
+        alert("1. Rescatando imagen desde disco (el celu reinició la memoria)...");
+        const resRescate = await fetch(fotoEnDisco);
+        archivoParaSubir = await resRescate.blob();
         alert("2. Imagen rescatada con éxito!");
-      } 
-      // 🕵️ ESTRATEGIA DE RESCATE (LocalStorage por si se reinició la pestaña)
-      else if (!archivoParaSubir) {
-        const fotoStorage = localStorage.getItem("clipp_foto_temp");
-        if (fotoStorage) {
-          alert("1. Rescatando desde LocalStorage (el celu reinició la pestaña)...");
-          const resBackup = await fetch(fotoStorage);
-          archivoParaSubir = await resBackup.blob();
-          alert("2. Imagen rescatada desde Storage!");
-        }
       }
 
       if (archivoParaSubir) {
         urlFinal = await subirACloudinary(archivoParaSubir)
       } else {
-        alert("Aviso: No hay archivo ni backups encontrados. Se guarda sin foto.");
+        alert("Aviso: No hay foto para subir.");
       }
 
-      alert("5. Mandando datos a la base de datos...");
+      alert("5. Guardando barbero en base de datos...");
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -157,8 +151,8 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        alert("6. ¡ÉXITO! Barbero guardado.");
-        localStorage.removeItem("clipp_foto_temp"); // Limpiamos al terminar
+        alert("6. ¡ÉXITO! Todo guardado.");
+        localStorage.removeItem("clipp_foto_temp");
         toast.success("Listo")
         cancelarEdicion()
         cargarEmpleados()
@@ -194,7 +188,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
           <form onSubmit={handleSubmit} className="space-y-6 border-b border-gray-100 pb-8">
             <div className="flex flex-col items-center gap-3">
                 <label className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative active:scale-95 transition-all">
-                    {preview || fotoUrl ? (
+                    {(preview || fotoUrl) ? (
                         <img src={preview || fotoUrl} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
                         <Camera className="text-gray-300 w-8 h-8" />
@@ -205,7 +199,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             </div>
 
             <div className="space-y-1">
-              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre</Label>
+              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre del Barbero</Label>
               <Input 
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
