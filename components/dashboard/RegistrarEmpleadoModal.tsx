@@ -16,7 +16,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   const [fotoUrl, setFotoUrl] = React.useState("") 
   const [preview, setPreview] = React.useState("") 
   const [archivoFoto, setArchivoFoto] = React.useState<File | null>(null)
-  const [backupBase64, setBackupBase64] = React.useState<string | null>(null) // 👈 EL SALVAVIDAS
+  const [backupBase64, setBackupBase64] = React.useState<string | null>(null)
   const [serviciosSeleccionados, setServiciosSeleccionados] = React.useState<number[]>([])
   const [cargando, setCargando] = React.useState(false)
   const [listaEmpleados, setListaEmpleados] = React.useState<any[]>([])
@@ -46,7 +46,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setPreview(base64);
-        setBackupBase64(base64); // 👈 Guardamos el respaldo en texto
+        setBackupBase64(base64);
       };
       reader.readAsDataURL(file);
       e.target.value = "" 
@@ -84,6 +84,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   };
 
   const subirACloudinary = async (file: File | Blob) => {
+    alert("3. Empezando fetch a Cloudinary...");
     const formData = new FormData()
     const archivoOptimizado = await comprimirImagen(file);
     formData.append("file", archivoOptimizado)
@@ -95,8 +96,13 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       method: "POST",
       body: formData
     })
-    if (!res.ok) throw new Error("Error en Cloudinary")
+    if (!res.ok) {
+      const errTxt = await res.text();
+      alert("Error Cloudinary: " + errTxt);
+      throw new Error("Error en Cloudinary")
+    }
     const data = await res.json()
+    alert("4. Cloudinary OK. URL: " + data.secure_url);
     return data.secure_url 
   }
 
@@ -110,16 +116,21 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     try {
       let archivoParaSubir: File | Blob | null = archivoFoto;
 
-      // 🕵️ RESCATE: Si el archivo se perdió (Celu sin RAM), lo reconstruimos desde el Base64
+      // 🕵️ ALERTA DE RESCATE
       if (!archivoParaSubir && backupBase64) {
+        alert("1. El archivo se borró de RAM, intentando rescatar desde el Backup...");
         const resBackup = await fetch(backupBase64);
         archivoParaSubir = await resBackup.blob();
+        alert("2. Imagen rescatada con éxito!");
       }
 
       if (archivoParaSubir) {
         urlFinal = await subirACloudinary(archivoParaSubir)
+      } else {
+        alert("Aviso: No hay archivo ni backup, se guarda sin foto.");
       }
 
+      alert("5. Mandando datos a la base de datos...");
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,13 +144,16 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        toast.success(editandoId ? "Actualizado" : "Registrado")
+        alert("6. ¡ÉXITO! Barbero guardado.");
+        toast.success("Listo")
         cancelarEdicion()
         cargarEmpleados()
+      } else {
+        const apiErr = await res.text();
+        alert("Error API Clipp: " + apiErr);
       }
     } catch (error: any) {
-      console.error(error)
-      toast.error("No se pudo subir la foto")
+      alert("Error crítico en handleSubmit: " + error.message);
     } finally {
       setCargando(false)
     }
@@ -150,7 +164,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     try {
       const res = await fetch(`/api/empleados?id_empleado=${id}`, { method: "DELETE" });
       if (res.ok) { toast.success("Eliminado"); cargarEmpleados(); }
-    } catch (error) { toast.error("Error al eliminar") }
+    } catch (error) { toast.error("Error") }
   };
 
   return (
@@ -173,11 +187,11 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                     )}
                     <input type="file" onChange={handleFileChange} accept="image/*" className="hidden" />
                 </label>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Toca para cambiar foto</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Toca para cambiar foto</span>
             </div>
 
             <div className="space-y-1">
-              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre del Barbero</Label>
+              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre</Label>
               <Input 
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
