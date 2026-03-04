@@ -1,16 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { UserPlus, Loader2, Trash2, Users, X, Camera } from "lucide-react"
+import { Loader2, Trash2, Users, X, Camera } from "lucide-react"
 import { toast } from "sonner"
 
-// ⚙️ CONFIGURACIÓN DE CLOUDINARY
 const CLOUD_NAME = "dylr49zlx"
-const UPLOAD_PRESET = "clipp_staff" // Asegurate que este sea el nombre exacto de tu preset "Unsigned"
+const UPLOAD_PRESET = "clipp_staff"
 
 export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idComercio, usuario }: any) {
   const [nombre, setNombre] = React.useState("")
@@ -47,12 +46,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   }
 
   const cancelarEdicion = () => {
-    setEditandoId(null)
-    setNombre("")
-    setFotoUrl("")
-    setPreview("")
-    setArchivoFoto(null)
-    setServiciosSeleccionados([])
+    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
   }
 
   const prepararEdicion = (emp: any) => {
@@ -63,27 +57,50 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
   }
 
-  // --- FUNCIÓN DE SUBIDA CON CARPETAS DINÁMICAS ---
+  // --- 🛠️ COMPRESIÓN DE IMAGEN PARA CELULARES ---
+  const comprimirImagen = (file: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; // Tamaño ideal para perfil
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob((blob) => {
+            resolve(blob || file);
+          }, 'image/jpeg', 0.8); // 80% de calidad
+        };
+      };
+    });
+  };
+
+  // --- ☁️ SUBIDA A CLOUDINARY ---
   const subirACloudinary = async (file: File) => {
     const formData = new FormData()
-    formData.append("file", file)
+    
+    // Comprimimos antes de enviar
+    const archivoOptimizado = await comprimirImagen(file);
+    formData.append("file", archivoOptimizado)
     formData.append("upload_preset", UPLOAD_PRESET)
     
-    // 📁 Carpeta: clipp / [nombre-barberia] / staff
     const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
     formData.append("folder", carpetaDestino)
-    console.log("Subiendo a Cloudinary con carpeta:", carpetaDestino,usuario, idComercio)
 
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
       method: "POST",
       body: formData
     })
     
-    if (!res.ok) {
-        const errorData = await res.json()
-        console.error("Detalle error Cloudinary:", errorData)
-        throw new Error("Error al subir a Cloudinary")
-    }
+    if (!res.ok) throw new Error("Error al subir a Cloudinary")
     
     const data = await res.json()
     return data.secure_url 
@@ -98,6 +115,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
     try {
       if (archivoFoto) {
+        toast.info("Subiendo foto de perfil...")
         urlFinal = await subirACloudinary(archivoFoto)
       }
 
@@ -114,13 +132,13 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        toast.success(editandoId ? "Barbero actualizado" : "Barbero registrado con éxito")
+        toast.success(editandoId ? "Barbero actualizado" : "Barbero registrado")
         cancelarEdicion()
         cargarEmpleados()
       }
     } catch (error) {
       console.error(error)
-      toast.error("No se pudo procesar la solicitud")
+      toast.error("Error en la subida. Intentá con una foto más liviana.")
     } finally {
       setCargando(false)
     }
@@ -146,7 +164,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       >
         <div className="p-8 overflow-y-auto custom-scrollbar">
           <DialogHeader className="mb-6">
-            <DialogTitle className="text-2xl font-black text-[#3D2B1F] flex items-center gap-2 uppercase italic tracking-tighter">
+            <DialogTitle className="text-2xl font-black text-[#3D2B1F] flex items-center gap-2 uppercase tracking-tighter">
               <Users className="w-7 h-7 text-[#7A9A75]" /> Staff de Barberos
             </DialogTitle>
           </DialogHeader>
@@ -163,7 +181,13 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                         <Camera className="text-gray-300 w-8 h-8" />
                     )}
                 </div>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Toca para cambiar foto</span>
             </div>
 
@@ -179,7 +203,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             </div>
 
             <div className="space-y-2">
-              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest italic">Especialidades</Label>
+              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Especialidades</Label>
               <div className="flex flex-wrap gap-2">
                 {servicios.map((s: any) => {
                   const isSelected = serviciosSeleccionados.includes(s.id_servicio);
@@ -210,7 +234,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                 {cargando ? <Loader2 className="animate-spin" /> : editandoId ? "Actualizar" : "Registrar"}
               </Button>
               {editandoId && (
-                <Button type="button" variant="outline" onClick={cancelarEdicion} className="h-14 w-14 rounded-2xl">
+                <Button type="button" variant="outline" onClick={cancelarEdicion} className="h-14 w-14 rounded-2xl border-2">
                   <X />
                 </Button>
               )}
