@@ -37,19 +37,19 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     else cancelarEdicion()
   }, [open, cargarEmpleados])
 
-  // --- 🛠️ HANDLE FILE CHANGE (FIX CELULAR) ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setArchivoFoto(file)
       
-      // Usamos FileReader en lugar de URL.createObjectURL para que el celu no pierda la imagen
+      // Preview robusta en Base64 para el celu
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
 
+      // Reset del valor para permitir repetir la misma foto
       e.target.value = "" 
     }
   }
@@ -85,52 +85,46 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   };
 
   const subirACloudinary = async (file: File) => {
-    alert("1. Iniciando subida. Archivo: " + file.name + " Size: " + file.size);
+    const formData = new FormData()
+    const archivoOptimizado = await comprimirImagen(file);
+    formData.append("file", archivoOptimizado)
+    formData.append("upload_preset", UPLOAD_PRESET)
+    const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
+    formData.append("folder", carpetaDestino)
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: formData
+    })
     
-    try {
-      const formData = new FormData()
-      const archivoOptimizado = await comprimirImagen(file);
-      alert("2. Imagen comprimida con éxito");
-
-      formData.append("file", archivoOptimizado)
-      formData.append("upload_preset", UPLOAD_PRESET)
-      const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
-      formData.append("folder", carpetaDestino)
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-        method: "POST",
-        body: formData
-      })
-      
-      if (!res.ok) {
-        const errData = await res.json();
-        alert("3. Error Cloudinary: " + JSON.stringify(errData));
-        throw new Error("Error en Cloudinary");
-      }
-      
-      const data = await res.json()
-      alert("4. Subida exitosa! URL: " + data.secure_url);
-      return data.secure_url 
-    } catch (err: any) {
-      alert("ERROR EN SUBIDA: " + err.message);
-      throw err;
+    if (!res.ok) {
+      const errorData = await res.json()
+      alert("Error Cloudinary: " + JSON.stringify(errorData));
+      throw new Error("Error en Cloudinary")
     }
+    
+    const data = await res.json()
+    return data.secure_url 
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nombre || cargando) return
     
-    alert("5. Click en Registrar. ID Comercio: " + idComercio);
+    // 🔍 ALERTS DE DEBUG
+    alert("Check 1 - Archivo: " + (archivoFoto ? "OK" : "VACÍO") + " | Preview: " + (preview ? "OK" : "VACÍO"));
+
     setCargando(true)
     let urlFinal = fotoUrl;
 
     try {
       if (archivoFoto) {
+        alert("Check 2 - Subiendo foto a Cloudinary...");
         urlFinal = await subirACloudinary(archivoFoto)
+        alert("Check 3 - Foto subida! URL: " + urlFinal);
       }
 
-      alert("6. Mandando a la API de Clipp...");
+      alert("Check 4 - Guardando en Base de Datos...");
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,16 +138,16 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        alert("7. ¡TODO GUARDADO!");
-        toast.success("Éxito")
+        alert("Check 5 - ¡ÉXITO TOTAL!");
+        toast.success(editandoId ? "Actualizado" : "Registrado")
         cancelarEdicion()
         cargarEmpleados()
       } else {
         const apiErr = await res.text();
-        alert("8. Error API Clipp: " + apiErr);
+        alert("Error en API: " + apiErr);
       }
     } catch (error: any) {
-      alert("9. Error General: " + error.message);
+      alert("Error en Proceso: " + error.message);
     } finally {
       setCargando(false)
     }
@@ -179,28 +173,25 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
           <form onSubmit={handleSubmit} className="space-y-6 border-b border-gray-100 pb-8">
             <div className="flex flex-col items-center gap-3">
-                <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative"
-                >
+                {/* 👈 LABEL WRAPPER PARA CLIC SEGURO EN CELULARES */}
+                <label className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative group active:scale-95 transition-all">
                     {preview || fotoUrl ? (
                         <img src={preview || fotoUrl} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
                         <Camera className="text-gray-300 w-8 h-8" />
                     )}
-                </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
-                  accept="image/*" 
-                  className="hidden" 
-                />
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Toca para cambiar foto</span>
+                    <input 
+                      type="file" 
+                      onChange={handleFileChange} 
+                      accept="image/*" 
+                      className="hidden" 
+                    />
+                </label>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Toca para cambiar foto</span>
             </div>
 
             <div className="space-y-1">
-              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre</Label>
+              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Nombre del Barbero</Label>
               <Input 
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
@@ -243,7 +234,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             {listaEmpleados.map((emp: any) => (
               <div 
                 key={emp.id_empleado} 
-                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm cursor-pointer"
+                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm"
                 onClick={() => prepararEdicion(emp)}
               >
                 <img src={emp.foto_url || "/api/placeholder/100/100"} className="h-12 w-12 rounded-full object-cover" />
