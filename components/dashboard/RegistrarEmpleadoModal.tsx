@@ -16,6 +16,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   const [fotoUrl, setFotoUrl] = React.useState("") 
   const [preview, setPreview] = React.useState("") 
   const [archivoFoto, setArchivoFoto] = React.useState<File | null>(null)
+  const [backupBase64, setBackupBase64] = React.useState<string | null>(null) // 👈 EL SALVAVIDAS
   const [serviciosSeleccionados, setServiciosSeleccionados] = React.useState<number[]>([])
   const [cargando, setCargando] = React.useState(false)
   const [listaEmpleados, setListaEmpleados] = React.useState<any[]>([])
@@ -41,21 +42,19 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     const file = e.target.files?.[0]
     if (file) {
       setArchivoFoto(file)
-      
-      // Preview robusta en Base64 para el celu
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreview(reader.result as string);
+        const base64 = reader.result as string;
+        setPreview(base64);
+        setBackupBase64(base64); // 👈 Guardamos el respaldo en texto
       };
       reader.readAsDataURL(file);
-
-      // Reset del valor para permitir repetir la misma foto
       e.target.value = "" 
     }
   }
 
   const cancelarEdicion = () => {
-    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
+    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setBackupBase64(null); setServiciosSeleccionados([])
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -63,7 +62,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
   }
 
-  const comprimirImagen = (file: File): Promise<Blob> => {
+  const comprimirImagen = (file: File | Blob): Promise<Blob> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -84,7 +83,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     });
   };
 
-  const subirACloudinary = async (file: File) => {
+  const subirACloudinary = async (file: File | Blob) => {
     const formData = new FormData()
     const archivoOptimizado = await comprimirImagen(file);
     formData.append("file", archivoOptimizado)
@@ -96,13 +95,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       method: "POST",
       body: formData
     })
-    
-    if (!res.ok) {
-      const errorData = await res.json()
-      alert("Error Cloudinary: " + JSON.stringify(errorData));
-      throw new Error("Error en Cloudinary")
-    }
-    
+    if (!res.ok) throw new Error("Error en Cloudinary")
     const data = await res.json()
     return data.secure_url 
   }
@@ -111,20 +104,22 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     e.preventDefault()
     if (!nombre || cargando) return
     
-    // 🔍 ALERTS DE DEBUG
-    alert("Check 1 - Archivo: " + (archivoFoto ? "OK" : "VACÍO") + " | Preview: " + (preview ? "OK" : "VACÍO"));
-
     setCargando(true)
     let urlFinal = fotoUrl;
 
     try {
-      if (archivoFoto) {
-        alert("Check 2 - Subiendo foto a Cloudinary...");
-        urlFinal = await subirACloudinary(archivoFoto)
-        alert("Check 3 - Foto subida! URL: " + urlFinal);
+      let archivoParaSubir: File | Blob | null = archivoFoto;
+
+      // 🕵️ RESCATE: Si el archivo se perdió (Celu sin RAM), lo reconstruimos desde el Base64
+      if (!archivoParaSubir && backupBase64) {
+        const resBackup = await fetch(backupBase64);
+        archivoParaSubir = await resBackup.blob();
       }
 
-      alert("Check 4 - Guardando en Base de Datos...");
+      if (archivoParaSubir) {
+        urlFinal = await subirACloudinary(archivoParaSubir)
+      }
+
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,16 +133,13 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       })
 
       if (res.ok) {
-        alert("Check 5 - ¡ÉXITO TOTAL!");
         toast.success(editandoId ? "Actualizado" : "Registrado")
         cancelarEdicion()
         cargarEmpleados()
-      } else {
-        const apiErr = await res.text();
-        alert("Error en API: " + apiErr);
       }
     } catch (error: any) {
-      alert("Error en Proceso: " + error.message);
+      console.error(error)
+      toast.error("No se pudo subir la foto")
     } finally {
       setCargando(false)
     }
@@ -158,7 +150,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     try {
       const res = await fetch(`/api/empleados?id_empleado=${id}`, { method: "DELETE" });
       if (res.ok) { toast.success("Eliminado"); cargarEmpleados(); }
-    } catch (error) { toast.error("Error") }
+    } catch (error) { toast.error("Error al eliminar") }
   };
 
   return (
@@ -173,21 +165,15 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
           <form onSubmit={handleSubmit} className="space-y-6 border-b border-gray-100 pb-8">
             <div className="flex flex-col items-center gap-3">
-                {/* 👈 LABEL WRAPPER PARA CLIC SEGURO EN CELULARES */}
-                <label className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative group active:scale-95 transition-all">
+                <label className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative active:scale-95 transition-all">
                     {preview || fotoUrl ? (
                         <img src={preview || fotoUrl} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
                         <Camera className="text-gray-300 w-8 h-8" />
                     )}
-                    <input 
-                      type="file" 
-                      onChange={handleFileChange} 
-                      accept="image/*" 
-                      className="hidden" 
-                    />
+                    <input type="file" onChange={handleFileChange} accept="image/*" className="hidden" />
                 </label>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Toca para cambiar foto</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Toca para cambiar foto</span>
             </div>
 
             <div className="space-y-1">
@@ -210,7 +196,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                       key={s.id_servicio}
                       type="button"
                       onClick={() => setServiciosSeleccionados(prev => isSelected ? prev.filter(x => x !== s.id_servicio) : [...prev, s.id_servicio])}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black border ${
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black border transition-all ${
                           isSelected ? "bg-[#3D2B1F] text-white border-[#3D2B1F]" : "bg-white text-gray-400 border-gray-100"
                       }`}
                     >
@@ -234,7 +220,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             {listaEmpleados.map((emp: any) => (
               <div 
                 key={emp.id_empleado} 
-                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm"
+                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm cursor-pointer"
                 onClick={() => prepararEdicion(emp)}
               >
                 <img src={emp.foto_url || "/api/placeholder/100/100"} className="h-12 w-12 rounded-full object-cover" />
