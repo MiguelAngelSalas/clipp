@@ -90,19 +90,20 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
     }, [telefono, usuario, turnoAEditar])
 
     // 4. GUARDAR CAMBIOS (CORREGIDO PARA EVITAR DESFASE ✅)
-    const handleGuardar = async () => {
+    const handleGuardar = async (extraData?: { id_empleado?: number }) => {
         if (!date || !hora) return
         setLoading(true)
         
-        // En lugar de crear un objeto Date acá, mandamos los strings.
         // Usamos formatDateLocal para asegurar el formato YYYY-MM-DD
         const fechaString = formatDateLocal(date)
 
         const datos = {
             id_turno: turnoAEditar?.id_turno, 
             id_comercio: usuario.id_comercio || usuario.id,
+            // 👈 ACA ESTÁ LA MAGIA: Capturamos el barbero seleccionado
+            id_empleado: extraData?.id_empleado || null, 
             fecha: fechaString, // "2026-02-10"
-            hora: hora,        // "10:30" (El string que seleccionaste)
+            hora: hora,        // "10:30"
             nombre_invitado: cliente,
             contacto_invitado: telefono || null,
             servicio: servicio,
@@ -110,9 +111,14 @@ export function useNuevoTurnoLogic({ open, onOpenChange, date, turnos, turnoAEdi
             metodoPago: metodoPago === "EFECTIVO" ? "EFECTIVO" : "DIGITAL"
         }
 
-        await onGuardar(datos)
-        setLoading(false)
-        onOpenChange(false)
+        try {
+            await onGuardar(datos)
+            onOpenChange(false)
+        } catch (error) {
+            console.error("Error al guardar el turno:", error)
+        } finally {
+            setLoading(false)
+        }
     }
 
     // 5. VALIDACIÓN DE OCUPADO

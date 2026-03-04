@@ -6,8 +6,8 @@ import AppMenu from "@/components/ui/appMenu"
 import { ArrowLeft } from "lucide-react"
 import { ConfigModal } from "@/components/dashboard/config-modal"
 import { ServiciosModal } from "@/components/dashboard/ServiciosModal"
-import { set } from "date-fns"
-import {toast}  from "sonner"
+import { RegistrarEmpleadoModal } from "./RegistrarEmpleadoModal" 
+import { toast } from "sonner"
 
 interface NavHeaderProps {
   onNuevoTurno: () => void
@@ -26,16 +26,28 @@ export function NavHeader({
 }: NavHeaderProps) {
   
   const [isConfigOpen, setIsConfigOpen] = React.useState(false)
-  
   const [isServicesOpen, setServicesOpen] = React.useState(false)
-  // --- DEBUG PARA EL MATE ---
-  // Si en la consola ves que el ID no aparece, es porque el objeto 'usuario' viene distinto
-  React.useEffect(() => {
-    console.log("Migue, este es tu usuario actual:", usuario);
-  }, [usuario]);
+  const [isEmployeesOpen, setEmployeesOpen] = React.useState(false) 
+  const [servicios, setServicios] = React.useState<any[]>([]) // 👈 Tipado corregido para evitar error 'never'
 
-  // Capturamos el ID: probamos con id_comercio, y si no existe, con id
   const idParaTelegram = usuario?.id_comercio || usuario?.id;
+
+  // --- CARGA MANUAL DE SERVICIOS ---
+  // Usamos una función en lugar de useEffect para evitar bucles infinitos
+  const handleOpenEmployees = async () => {
+    if (idParaTelegram && servicios.length === 0) {
+      try {
+        const res = await fetch(`/api/servicios?id_comercio=${idParaTelegram}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setServicios(data);
+        }
+      } catch (err) {
+        console.error("Error cargando servicios para empleados", err);
+      }
+    }
+    setEmployeesOpen(true);
+  };
 
   const handleShare = () => {
     const slug = usuario?.slug
@@ -69,8 +81,8 @@ export function NavHeader({
               onConfigClick={() => setIsConfigOpen(true)} 
               onLogoutClick={onVolver}
               onShareClick={handleShare} 
-              onServicesClick={() => {console.log("¡LLEGÓ EL CLIC AL PADRE!"); setServicesOpen(true)}}
-              // 👇 PASAMOS EL ID BLINDADO ACÁ
+              onServicesClick={() => setServicesOpen(true)}
+              onEmployeesClick={handleOpenEmployees} // 👈 Cambiado a la función de carga manual
               idComercio={idParaTelegram} 
             />
             
@@ -79,16 +91,30 @@ export function NavHeader({
             </div>
         </div>
 
+        {/* --- MODALES --- */}
         <ConfigModal 
           open={isConfigOpen} 
           onOpenChange={setIsConfigOpen} 
           usuario={usuario}
           onUpdate={onUpdateUser}
         />
+
         <ServiciosModal
           open={isServicesOpen}
           onOpenChange={setServicesOpen}
           idComercio={idParaTelegram}
+        />
+
+        {/* --- MODAL DE EMPLEADOS --- */}
+        <RegistrarEmpleadoModal
+          open={isEmployeesOpen}
+          onOpenChange={setEmployeesOpen}
+          servicios={servicios}
+          idComercio={idParaTelegram}
+          usuario={usuario} // 👈 CRÍTICO: Pasamos el usuario para que Cloudinary tenga el slug y cree las carpetas
+          onGuardar={() => {
+            toast.success("¡Operación exitosa!");
+          }}
         />
     </div>
   )

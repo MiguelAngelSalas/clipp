@@ -18,7 +18,8 @@ import {
   PlusCircle,
   Share2,
   Send,
-  Scissors
+  Scissors,
+  Users // 👈 Agregamos este ícono
 } from "lucide-react"
 
 interface AppMenuProps {
@@ -28,6 +29,7 @@ interface AppMenuProps {
   onLogoutClick?: () => void 
   onShareClick?: () => void
   onServicesClick?: () => void
+  onEmployeesClick?: () => void // 👈 Nueva prop para manejar el click
   idComercio?: number 
 }
 
@@ -38,6 +40,7 @@ export default function AppMenu({
   onLogoutClick,
   onShareClick,
   onServicesClick,
+  onEmployeesClick, // 👈 La recibimos acá
   idComercio 
 }: AppMenuProps) {
   
@@ -45,7 +48,6 @@ export default function AppMenu({
   const estiloItem = "cursor-pointer text-migue-gris focus:bg-migue-beige focus:text-migue-gris py-2"
   const verdeMigue = "text-[#7A9A75]"
 
-  // Nombre de usuario de tu bot (el que termina en _bot)
   const botUsername = "saas_barberia_bot"; 
 
   return (
@@ -92,14 +94,11 @@ export default function AppMenu({
             Mi Negocio
         </MenubarTrigger>
         <MenubarContent className={estiloMenu}>
-          <MenubarItem>
-
-          </MenubarItem>
+          
           <MenubarItem className={estiloItem} onClick={onShareClick}>
               <Share2 className="mr-2 h-4 w-4 text-blue-500" /> Compartir Link
           </MenubarItem>
 
-          {/* OPCIÓN TELEGRAM COMO LINK DIRECTO */}
           <MenubarItem className={estiloItem} asChild>
             <a 
               href={`https://telegram.me/${botUsername}?start=${idComercio}`} 
@@ -114,12 +113,21 @@ export default function AppMenu({
           
           <MenubarSeparator className="bg-migue-gris/20" />
 
-          <MenubarItem className={estiloItem} onClick={onConfigClick}>
-              <Settings className="mr-2 h-4 w-4 opacity-70" /> Configuración
-          </MenubarItem>
+          {/* 👈 SECCIÓN DE GESTIÓN (Servicios y ahora Empleados) */}
           <MenubarItem className={estiloItem} onSelect={onServicesClick}>
               <Scissors className="mr-2 h-4 w-4 opacity-70" /> Servicios
           </MenubarItem>
+
+          <MenubarItem className={estiloItem} onSelect={onEmployeesClick}>
+              <Users className="mr-2 h-4 w-4 opacity-70" /> Equipo / Personal
+          </MenubarItem>
+
+          <MenubarSeparator className="bg-migue-gris/20" />
+
+          <MenubarItem className={estiloItem} onClick={onConfigClick}>
+              <Settings className="mr-2 h-4 w-4 opacity-70" /> Configuración
+          </MenubarItem>
+          
           <MenubarSeparator className="bg-migue-gris/20" />
           <MenubarItem className={estiloItem} onClick={onLogoutClick}>
               <LogOut className="mr-2 h-4 w-4 opacity-70" /> Salir

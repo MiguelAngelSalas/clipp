@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// 1. GET: Para LEER los movimientos del día
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id_comercio = searchParams.get("id_comercio");
@@ -11,9 +12,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Si viene fechaParam (YYYY-MM-DD), creamos la fecha en base a eso
+    // Si no, usamos la fecha actual
     const baseDate = fechaParam ? new Date(`${fechaParam}T00:00:00`) : new Date();
-    // Si no hay fechaParam, restamos 3 horas para ajustar a Argentina
-    if (!fechaParam) baseDate.setHours(baseDate.getHours() - 3);
 
     const inicioDia = new Date(baseDate);
     inicioDia.setHours(0, 0, 0, 0);
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
           lte: finDia
         }
       },
-      orderBy: { fecha: 'asc' } // Cambiado a ASC para que el resumen siga el orden del día
+      orderBy: { fecha: 'asc' } // Orden ascendente para la cronología
     });
 
     return NextResponse.json(movimientos);
@@ -41,33 +42,36 @@ export async function GET(request: Request) {
   }
 }
 
+// 2. POST: Para GUARDAR un nuevo cobro manual
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // IMPORTANTE: Ponemos logs para ver qué llega desde el frontend
+    // Log para debuguear en la terminal de VS Code
     console.log("DEBUG: Body recibido:", body);
 
     const { monto, descripcion, metodo, id_comercio } = body;
 
-    // Validación de seguridad para que Prisma no explote
+    // Validación de seguridad
     if (!monto || !id_comercio) {
         return NextResponse.json({ message: "Monto e ID Comercio son obligatorios" }, { status: 400 });
     }
 
-    const fechaArgentina = new Date();
-    fechaArgentina.setHours(fechaArgentina.getHours() - 3); 
+    // IMPORTANTE: No restamos 3 horas aquí.
+    // Guardamos la fecha UTC tal cual para que tus utilidades de frontend 
+    // hagan el ajuste de zona horaria correctamente al mostrarlo.
+    const fechaActual = new Date(); 
 
     const nuevoMovimiento = await prisma.movimientos_caja.create({
       data: {
         monto: Number(monto),
-        // Si descripcion llega como "" o undefined, usa el fallback
+        // Si descripcion llega vacío, aplicamos el fallback
         descripcion: (descripcion && descripcion.trim() !== "") ? descripcion : "Venta varios",
-        // Mapeamos 'metodo' (que viene del modal) a 'metodo_pago' (que es la columna en la DB)
+        // Mapeamos 'metodo' a 'metodo_pago' (la columna de tu DB)
         metodo_pago: metodo || "EFECTIVO", 
         tipo: "INGRESO",
         id_comercio: Number(id_comercio),
-        fecha: fechaArgentina, 
+        fecha: fechaActual, 
       },
     });
 
@@ -75,7 +79,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("ERROR CRÍTICO EN POST /api/caja:", error);
-    // Si el error es de Prisma (ej: id_comercio no existe), esto te lo dirá en la terminal
     return NextResponse.json({ 
         message: "Error al guardar el cobro", 
         error: error.message 

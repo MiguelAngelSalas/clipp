@@ -7,22 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 💈 TABLA DE COMERCIOS (El corazón del SaaS)
+model comercios {
+  id_comercio        Int       @id @default(autoincrement())
+  nombre_empresa     String    @db.VarChar(100)
+  direccion          String?   @db.VarChar(255)
+  telefono_unico     String?   @db.VarChar(50)
+  email_unico        String    @unique(map: "email_unico") @db.VarChar(100)
+  contrasena         String    @db.VarChar(255)
+  slug               String    @unique @db.VarChar(100)
+  
+  suscrito           Boolean   @default(false) 
+
+  // Configuración de agenda
+  hora_apertura      String    @default("09:00")
+  hora_cierre        String    @default("20:00")
+  duracion_turno_min Int       @default(30)
+
+  // Verificación y seguridad
+  emailVerificado    Boolean   @default(false)
+  verificationToken  String?   @unique @db.VarChar(255)
+  resetToken         String?   @unique @db.VarChar(255)
+  resetTokenExpiry   DateTime? @db.Timestamp(0)
+
+  telegramChatId     String?
+  created_at         DateTime? @default(now()) @db.Timestamp(0)
+  
+  // Relaciones
+  clientes           clientes[]
+  turnos             turnos[]
+  movimientos_caja   movimientos_caja[]
+  servicios          servicios[]
+  empleados          empleados[]
+}
+
+// 👤 TABLA DE EMPLEADOS / BARBEROS
+model empleados {
+  id_empleado  Int       @id @default(autoincrement())
+  id_comercio  Int
+  nombre       String    @db.VarChar(100)
+  foto_url     String?   @db.VarChar(255)
+  activo       Boolean   @default(true)
+  created_at   DateTime? @default(now()) @db.Timestamp(0)
+
+  // Relaciones
+  comercios    comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade)
+  turnos       turnos[]
+  
+  // Muchos a Muchos: Un barbero tiene varios servicios, un servicio puede ser hecho por varios barberos
+  servicios    servicios[] @relation("EmpleadoServicios")
+
+  @@index([id_comercio])
+}
+
+// ✂️ TABLA DE SERVICIOS
 model servicios {
   id_servicio  Int       @id @default(autoincrement())
   id_comercio  Int
   nombre       String    @db.VarChar(100)
   precio       Decimal   @db.Decimal(10, 2)
-  duracion     Int       @default(30) // Duración en minutos
+  duracion     Int       @default(30)
   activo       Boolean   @default(true) 
 
   // Relaciones
   comercios    comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade)
   turnos       turnos[]
+  empleados    empleados[] @relation("EmpleadoServicios")
 
   @@index([id_comercio])
   @@unique([id_comercio, nombre])
 }
 
+// 👥 TABLA DE CLIENTES
 model clientes {
   id_cliente     Int       @id @default(autoincrement())
   id_comercio    Int
@@ -30,89 +86,54 @@ model clientes {
   whatsapp       String    @db.VarChar(50)
   email          String?   @db.VarChar(100)
   fecha_creacion DateTime? @default(now()) @db.Timestamp(0)
-  comercios      comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "clientes_ibfk_1")
+  
+  comercios      comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade)
   turnos         turnos[]
 
   @@unique([id_comercio, whatsapp], map: "unique_cliente_por_comercio")
 }
 
-model comercios {
-  id_comercio        Int     @id @default(autoincrement())
-  nombre_empresa     String  @db.VarChar(100)
-  direccion          String? @db.VarChar(255)
-  telefono_unico     String? @db.VarChar(50)
-  email_unico        String  @unique(map: "email_unico") @db.VarChar(100)
-  contrasena         String  @db.VarChar(255)
-  slug               String   @unique @db.VarChar(100)
-  
-  suscrito           Boolean @default(false) 
-
-  // --- NUEVOS CAMPOS DE CONFIGURACIÓN ---
-  hora_apertura       String @default("09:00")
-  hora_cierre         String @default("20:00")
-  duracion_turno_min  Int    @default(30)
-
-  // --- FLUJO DE VERIFICACIÓN DE EMAIL ---
-  emailVerificado     Boolean @default(false)
-  verificationToken   String? @unique @db.VarChar(255)
-
-  // --- CAMPOS PARA RECUPERACIÓN DE CONTRASEÑA ---
-  resetToken          String? @unique @db.VarChar(255)
-  resetTokenExpiry    DateTime? @db.Timestamp(0)
-
-  telegramChatId String?
-  
-  created_at          DateTime? @default(now()) @db.Timestamp(0)
-  
-  clientes            clientes[]
-  turnos              turnos[]
-  
-  // --- ESTA ES LA LÍNEA QUE FALTABA 👇 ---
-  movimientos_caja    movimientos_caja[]
-  servicios           servicios[]
-}
-
+// 📅 TABLA DE TURNOS
 model turnos {
-  id_turno          Int             @id @default(autoincrement())
+  id_turno          Int            @id @default(autoincrement())
   id_comercio       Int
   id_cliente        Int?
   id_servicio       Int?
+  id_empleado       Int?           // El barbero asignado
   
-  nombre_invitado   String?         @db.VarChar(100)
-  contacto_invitado String?         @db.VarChar(50)
+  nombre_invitado   String?        @db.VarChar(100)
+  contacto_invitado String?        @db.VarChar(50)
+  servicio_nombre   String         @db.VarChar(100)
+  fecha             DateTime       @db.Date
+  hora              DateTime       @db.Time(0)
+  estado            turnos_estado? @default(pendiente)
+  monto             Decimal?       @default(0.00) @db.Decimal(10, 2)
+  metodo_pago       String?        @db.VarChar(50) 
   
-  servicio_nombre   String          @db.VarChar(100)
-  fecha             DateTime        @db.Date
-  hora              DateTime        @db.Time(0)
-  estado            turnos_estado?  @default(pendiente)
+  created_at        DateTime?      @default(now()) @db.Timestamp(0)
   
-  monto             Decimal?        @default(0.00) @db.Decimal(10, 2)
-  
-  // --- NUEVO CAMPO AGREGADO ---
-  metodo_pago       String?         @db.VarChar(50) // "EFECTIVO", "DIGITAL"
-  
-  created_at        DateTime?       @default(now()) @db.Timestamp(0)
-  
-  comercios         comercios       @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "turnos_ibfk_1")
-  clientes          clientes?       @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction, map: "turnos_ibfk_2")
-  servicios         servicios?      @relation(fields: [id_servicio], references: [id_servicio], onDelete: SetNull, onUpdate: NoAction, map: "turnos_ibfk_3" )
-  @@index([id_cliente], map: "id_cliente")
-  @@index([id_comercio], map: "id_comercio")
-  @@index([id_servicio], map:"id_servicio")
+  comercios         comercios      @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade)
+  clientes          clientes?      @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
+  servicios         servicios?     @relation(fields: [id_servicio], references: [id_servicio], onDelete: SetNull)
+  empleados         empleados?     @relation(fields: [id_empleado], references: [id_empleado], onDelete: SetNull)
+
+  @@index([id_cliente])
+  @@index([id_comercio])
+  @@index([id_servicio])
+  @@index([id_empleado])
 }
 
+// 💰 TABLA DE MOVIMIENTOS DE CAJA
 model movimientos_caja {
-  id_movimiento     Int             @id @default(autoincrement())
-  id_comercio       Int
+  id_movimiento     Int       @id @default(autoincrement())
+  id_comercio        Int
+  fecha              DateTime  @default(now()) @db.Timestamp(0)
+  monto              Decimal   @db.Decimal(10, 2)
+  descripcion        String    @db.VarChar(255)
+  metodo_pago        String    @db.VarChar(50) 
+  tipo               String    @default("INGRESO") @db.VarChar(20)
   
-  fecha             DateTime        @default(now()) @db.Timestamp(0)
-  monto             Decimal         @db.Decimal(10, 2)
-  descripcion       String          @db.VarChar(255)
-  metodo_pago       String          @db.VarChar(50) // "EFECTIVO", "DIGITAL"
-  tipo              String          @default("INGRESO") @db.VarChar(20)
-  
-  // Relación con tu tabla de comercios existente
-  comercios         comercios       @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade, onUpdate: NoAction, map: "caja_ibfk_1")
+  comercios          comercios @relation(fields: [id_comercio], references: [id_comercio], onDelete: Cascade)
 
   @@index([id_comercio], map: "id_comercio_caja")
 }
