@@ -5,11 +5,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { UserPlus, Loader2, Trash2, Users, X, Camera } from "lucide-react"
+import { Loader2, Trash2, Users, X, Camera } from "lucide-react"
 import { toast } from "sonner"
 
 const CLOUD_NAME = "dylr49zlx"
-const UPLOAD_PRESET = "clipp_staff"
+const UPLOAD_PRESET = "clipp_staff" 
 
 export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idComercio, usuario }: any) {
   const [nombre, setNombre] = React.useState("")
@@ -23,7 +23,6 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // --- CARGA DE DATOS ---
   const cargarEmpleados = React.useCallback(async () => {
     if (!idComercio) return
     try {
@@ -38,56 +37,63 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     else cancelarEdicion()
   }, [open, cargarEmpleados])
 
-  // --- MANEJO DE ARCHIVO ---
+  // --- 🛠️ FIX PARA REPETIR FOTO ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // Validamos tamaño máximo (ej: 10MB) para avisar si es muy pesada
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("La foto es muy pesada, intentá con otra.")
-        return
-      }
       setArchivoFoto(file)
       setPreview(URL.createObjectURL(file))
+      // IMPORTANTE: Limpiamos el valor del input para que si tocamos 
+      // de nuevo la misma foto, el 'onChange' se vuelva a disparar.
+      e.target.value = "" 
     }
   }
 
   const cancelarEdicion = () => {
     setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const prepararEdicion = (emp: any) => {
     setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
   }
 
-  // --- SUBIDA A CLOUDINARY ---
+  const comprimirImagen = (file: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.7);
+        };
+      };
+    });
+  };
+
   const subirACloudinary = async (file: File) => {
     const formData = new FormData()
-    formData.append("file", file)
+    const archivoOptimizado = await comprimirImagen(file);
+    formData.append("file", archivoOptimizado)
     formData.append("upload_preset", UPLOAD_PRESET)
-    
     const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
     formData.append("folder", carpetaDestino)
 
-    // Agregamos un timeout manual para que no se cuelgue en el celu
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 30000); // 30 segs max
-
-    try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-        method: "POST",
-        body: formData,
-        signal: controller.signal
-      })
-      
-      clearTimeout(id);
-
-      if (!res.ok) throw new Error("Error en la subida")
-      const data = await res.json()
-      return data.secure_url 
-    } catch (err) {
-      throw new Error("La subida tardó demasiado o falló")
-    }
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: formData
+    })
+    if (!res.ok) throw new Error("Error en Cloudinary")
+    const data = await res.json()
+    return data.secure_url 
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,11 +101,11 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     if (!nombre || cargando) return
     
     setCargando(true)
-    let urlFinal = fotoUrl
+    let urlFinal = fotoUrl;
 
     try {
       if (archivoFoto) {
-        toast.info("Subiendo imagen...", { duration: 2000 })
+        toast.info("Subiendo foto...")
         urlFinal = await subirACloudinary(archivoFoto)
       }
 
@@ -120,15 +126,15 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         cancelarEdicion()
         cargarEmpleados()
       }
-    } catch (error: any) {
-      toast.error(error.message || "Error al procesar")
+    } catch (error) {
+      toast.error("Error al procesar")
     } finally {
       setCargando(false)
     }
   }
 
   const eliminarEmpleado = async (id: number) => {
-    if (!confirm("¿Seguro?")) return;
+    if (!confirm("¿Eliminar?")) return;
     try {
       const res = await fetch(`/api/empleados?id_empleado=${id}`, { method: "DELETE" });
       if (res.ok) { toast.success("Eliminado"); cargarEmpleados(); }
@@ -157,7 +163,6 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                         <Camera className="text-gray-300 w-8 h-8" />
                     )}
                 </div>
-                {/* 👈 FIX: Agregamos accept y quitamos capture si querés que elijan de galería también */}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -179,7 +184,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             </div>
 
             <div className="space-y-2">
-              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Especialidades</Label>
+              <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Servicios</Label>
               <div className="flex flex-wrap gap-2">
                 {servicios.map((s: any) => {
                   const isSelected = serviciosSeleccionados.includes(s.id_servicio);
@@ -189,7 +194,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
                       type="button"
                       onClick={() => setServiciosSeleccionados(prev => isSelected ? prev.filter(x => x !== s.id_servicio) : [...prev, s.id_servicio])}
                       className={`px-4 py-2 rounded-xl text-[10px] font-black border ${
-                        isSelected ? "bg-[#3D2B1F] text-white" : "bg-white text-gray-400 border-gray-100"
+                          isSelected ? "bg-[#3D2B1F] text-white" : "bg-white text-gray-400 border-gray-100"
                       }`}
                     >
                       {s.nombre}
@@ -212,8 +217,8 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             {listaEmpleados.map((emp: any) => (
               <div 
                 key={emp.id_empleado} 
+                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm cursor-pointer"
                 onClick={() => prepararEdicion(emp)}
-                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm"
               >
                 <img src={emp.foto_url || "/api/placeholder/100/100"} className="h-12 w-12 rounded-full object-cover" />
                 <div className="flex-1 flex items-center justify-between">
