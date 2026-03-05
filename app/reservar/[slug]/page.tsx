@@ -6,14 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Loader2, Home } from "lucide-react" 
 
-// Componentes modulares
 import { StepCalendar } from "./components/StepCalendar" 
 import { StepService } from "./components/StepService" 
+import { StepEmpleado } from "./components/StepEmpleado" // 👈 NUEVO
 import { StepTime } from "./components/StepTime"
 import { StepData } from "./components/StepData"
 import { StepSuccess } from "./components/StepSuccess" 
 
-// Hook personalizado
 import { useGuestBooking } from "./hooks/useGuestBooking" 
 
 export default function GuestBookingPage() {
@@ -22,7 +21,6 @@ export default function GuestBookingPage() {
   const [idComercio, setIdComercio] = React.useState<number | null>(null)
   const [error, setError] = React.useState(false)
 
-  // 1. Buscamos el ID del comercio por su Slug
   React.useEffect(() => {
     const fetchId = async () => {
       try {
@@ -30,12 +28,8 @@ export default function GuestBookingPage() {
         if (res.ok) {
           const data = await res.json()
           setIdComercio(data.id_comercio)
-        } else {
-          setError(true)
-        }
-      } catch (e) {
-        setError(true)
-      }
+        } else { setError(true) }
+      } catch (e) { setError(true) }
     }
     if (slug) fetchId()
   }, [slug])
@@ -46,22 +40,23 @@ export default function GuestBookingPage() {
   return <BookingForm idComercio={idComercio} slug={slug} />
 }
 
-// --- SUB-COMPONENTE: EL FORMULARIO ---
 function BookingForm({ idComercio, slug }: { idComercio: number, slug: string }) {
   const router = useRouter()
-  const [step, setStep] = React.useState<1 | 2 | 3 | 4 | 5>(1)
+  // 👈 Ahora son 6 pasos (incluyendo el success)
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4 | 5 | 6>(1)
 
   const { 
     comercio, servicios, loadingData, submitting,
     date, setDate, selectedTime, setSelectedTime,
     nombre, setNombre, telefono, setTelefono,
     selectedServicio, setSelectedServicio,
+    selectedEmpleado, setSelectedEmpleado, // 👈 Asegurate de agregar esto a tu hook
     horariosPosibles, getHorariosLibres, reservarTurno 
   } = useGuestBooking(idComercio)
 
   const handleConfirmar = async () => {
     const exito = await reservarTurno()
-    if (exito) setStep(5)
+    if (exito) setStep(6)
   }
 
   if (loadingData) return <LoadingState />
@@ -69,7 +64,7 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
   return (
     <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4">
       
-      {step !== 5 && (
+      {step !== 6 && (
         <Button 
           variant="ghost" 
           onClick={() => router.push(`/${slug}`)} 
@@ -81,16 +76,17 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
 
       <Card className="w-full max-w-2xl shadow-xl border-0 bg-white/90 backdrop-blur-sm">
         <CardHeader className="text-center border-b border-gray-50 pb-6">
-          <ProgressIndicator step={step} total={4} />
+          <ProgressIndicator step={step} total={5} />
           <CardTitle className="font-serif text-3xl text-[#3A3A3A] mt-4">
             {comercio?.nombre_empresa || "Barbería"}
           </CardTitle>
           <CardDescription className="text-base font-medium text-[#7A9A75]">
             {step === 1 && "1. Elegí el día"}
             {step === 2 && "2. ¿Qué te vas a hacer?"}
-            {step === 3 && "3. Elegí la hora"}
-            {step === 4 && "4. Completá tus datos"}
-            {step === 5 && "¡Turno Confirmado!"}
+            {step === 3 && "3. Elegí tu barbero"}
+            {step === 4 && "4. Elegí la hora"}
+            {step === 5 && "5. Completá tus datos"}
+            {step === 6 && "¡Turno Confirmado!"}
           </CardDescription>
         </CardHeader>
 
@@ -115,7 +111,20 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
             />
           )}
 
-          {step === 3 && date && (
+          {/* 💈 PASO NUEVO: ELECCIÓN DE EMPLEADO */}
+          {step === 3 && (
+            <StepEmpleado 
+              idServicio={selectedServicio?.id_servicio}
+              idComercio={idComercio}
+              onSelect={(emp: any) => {
+                setSelectedEmpleado(emp);
+                setStep(4);
+              }}
+              onBack={() => setStep(2)}
+            />
+          )}
+
+          {step === 4 && date && (
             <StepTime 
               date={date} 
               selectedTime={selectedTime} 
@@ -123,26 +132,26 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
               horariosLibres={getHorariosLibres(date)} 
               onSelect={(time: string) => {
                 setSelectedTime(time);
-                setStep(4);
+                setStep(5);
               }} 
-              onBack={() => setStep(2)} 
+              onBack={() => setStep(3)} 
             />
           )}
 
-          {step === 4 && date && (
+          {step === 5 && date && (
             <StepData 
               date={date} 
               selectedTime={selectedTime}
               nombre={nombre} setNombre={setNombre}
               telefono={telefono} setTelefono={setTelefono}
               servicioElegido={selectedServicio} 
-              onBack={() => setStep(3)}
+              onBack={() => setStep(4)}
               onConfirm={handleConfirmar}
               loading={submitting}
             />
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <StepSuccess 
               date={date} 
               time={selectedTime}
@@ -156,8 +165,7 @@ function BookingForm({ idComercio, slug }: { idComercio: number, slug: string })
   )
 }
 
-// --- INDICADOR DE PROGRESO SIN LA FUNCIÓN CN ---
-function ProgressIndicator({ step, total = 4 }: { step: number, total?: number }) {
+function ProgressIndicator({ step, total = 5 }: { step: number, total?: number }) {
   return (
     <div className="flex justify-center gap-2 mb-2">
       {Array.from({ length: total }).map((_, i) => (
@@ -187,7 +195,7 @@ function ErrorState() {
       <div className="bg-white p-8 rounded-2xl shadow-lg">
         <span className="text-6xl mb-4 block">💈</span>
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Página no encontrada</h2>
-        <p className="text-gray-500 mb-6">El link parece ser incorrecto o la barbería ya no está disponible.</p>
+        <p className="text-gray-500 mb-6">El link parece ser incorrecto.</p>
         <Button onClick={() => router.push('/')} className="bg-[#7A9A75] hover:bg-[#688564]">
           Ir al inicio
         </Button>

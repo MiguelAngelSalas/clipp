@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, Trash2, Users, X, Camera } from "lucide-react"
+import { Loader2, Trash2, Users, Camera, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 
 const CLOUD_NAME = "dylr49zlx"
@@ -15,7 +15,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   const [nombre, setNombre] = React.useState("")
   const [fotoUrl, setFotoUrl] = React.useState("") 
   const [preview, setPreview] = React.useState("") 
-  const [archivoFoto, setArchivoFoto] = React.useState<File | null>(null)
+  const [subiendoFoto, setSubiendoFoto] = React.useState(false)
   const [serviciosSeleccionados, setServiciosSeleccionados] = React.useState<number[]>([])
   const [cargando, setCargando] = React.useState(false)
   const [listaEmpleados, setListaEmpleados] = React.useState<any[]>([])
@@ -37,27 +37,6 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     else cancelarEdicion()
   }, [open, cargarEmpleados])
 
-  // --- 🛠️ FIX PARA REPETIR FOTO ---
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setArchivoFoto(file)
-      setPreview(URL.createObjectURL(file))
-      // IMPORTANTE: Limpiamos el valor del input para que si tocamos 
-      // de nuevo la misma foto, el 'onChange' se vuelva a disparar.
-      e.target.value = "" 
-    }
-  }
-
-  const cancelarEdicion = () => {
-    setEditandoId(null); setNombre(""); setFotoUrl(""); setPreview(""); setArchivoFoto(null); setServiciosSeleccionados([])
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  const prepararEdicion = (emp: any) => {
-    setEditandoId(emp.id_empleado); setNombre(emp.nombre); setFotoUrl(emp.foto_url || ""); setPreview(""); setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
-  }
-
   const comprimirImagen = (file: File): Promise<Blob> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -67,55 +46,94 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
+          const MAX_WIDTH = 600;
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.7);
+          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.6);
         };
       };
     });
   };
 
-  const subirACloudinary = async (file: File) => {
-    const formData = new FormData()
-    const archivoOptimizado = await comprimirImagen(file);
-    formData.append("file", archivoOptimizado)
-    formData.append("upload_preset", UPLOAD_PRESET)
-    const carpetaDestino = `clipp/${usuario?.slug || 'comercio_' + idComercio}/staff`
-    formData.append("folder", carpetaDestino)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: "POST",
-      body: formData
-    })
-    if (!res.ok) throw new Error("Error en Cloudinary")
-    const data = await res.json()
-    return data.secure_url 
+    setPreview(URL.createObjectURL(file))
+    setSubiendoFoto(true)
+
+    try {
+      const optimizada = await comprimirImagen(file);
+      const formData = new FormData()
+      formData.append("file", optimizada)
+      formData.append("upload_preset", UPLOAD_PRESET)
+      formData.append("folder", `clipp/${usuario?.slug || idComercio}/staff`)
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: formData
+      })
+      
+      const data = await res.json()
+      setFotoUrl(data.secure_url)
+      toast.success("Foto lista")
+    } catch (err) {
+      toast.error("Error al subir foto")
+      setPreview("")
+    } finally {
+      setSubiendoFoto(false)
+      if (e.target) e.target.value = "" 
+    }
+  }
+
+  const cancelarEdicion = () => {
+    setEditandoId(null)
+    setNombre("")
+    setFotoUrl("")
+    setPreview("")
+    setServiciosSeleccionados([])
+  }
+
+  const prepararEdicion = (emp: any) => {
+    setEditandoId(emp.id_empleado)
+    setNombre(emp.nombre)
+    setFotoUrl(emp.foto_url || "")
+    setPreview("")
+    setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
+  }
+
+  const eliminarEmpleado = async (id: number) => {
+    if (!confirm("¿Eliminar barbero?")) return
+    try {
+      const res = await fetch(`/api/empleados?id_empleado=${id}`, { method: "DELETE" })
+      if (res.ok) {
+        toast.success("Eliminado")
+        cargarEmpleados()
+      } else {
+        const txt = await res.text()
+        alert("Error: " + txt)
+      }
+    } catch (error) {
+      toast.error("Error de conexión")
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre || cargando) return
+    if (!nombre || cargando || subiendoFoto) return
     
     setCargando(true)
-    let urlFinal = fotoUrl;
-
     try {
-      if (archivoFoto) {
-        toast.info("Subiendo foto...")
-        urlFinal = await subirACloudinary(archivoFoto)
-      }
-
       const res = await fetch("/api/empleados", {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id_empleado: editandoId,
           nombre,
-          foto_url: urlFinal,
+          foto_url: fotoUrl, 
           id_comercio: Number(idComercio),
           serviciosIds: serviciosSeleccionados
         })
@@ -127,19 +145,11 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
         cargarEmpleados()
       }
     } catch (error) {
-      toast.error("Error al procesar")
+      toast.error("Error al guardar")
     } finally {
       setCargando(false)
     }
   }
-
-  const eliminarEmpleado = async (id: number) => {
-    if (!confirm("¿Eliminar?")) return;
-    try {
-      const res = await fetch(`/api/empleados?id_empleado=${id}`, { method: "DELETE" });
-      if (res.ok) { toast.success("Eliminado"); cargarEmpleados(); }
-    } catch (error) { toast.error("Error") }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,24 +163,24 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
 
           <form onSubmit={handleSubmit} className="space-y-6 border-b border-gray-100 pb-8">
             <div className="flex flex-col items-center gap-3">
-                <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative"
-                >
-                    {preview || fotoUrl ? (
-                        <img src={preview || fotoUrl} alt="Avatar" className="h-full w-full object-cover" />
-                    ) : (
-                        <Camera className="text-gray-300 w-8 h-8" />
-                    )}
-                </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
-                  accept="image/*" 
-                  className="hidden" 
-                />
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Toca para cambiar foto</span>
+              <div 
+                onClick={() => !subiendoFoto && fileInputRef.current?.click()}
+                className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative group"
+              >
+                {preview || fotoUrl ? (
+                  <>
+                    <img src={preview || fotoUrl} alt="Avatar" className={`h-full w-full object-cover ${subiendoFoto ? 'opacity-40' : ''}`} />
+                    {subiendoFoto && <Loader2 className="absolute animate-spin text-[#3D2B1F]" />}
+                    {!subiendoFoto && fotoUrl && <CheckCircle2 className="absolute bottom-1 right-1 text-green-500 bg-white rounded-full w-5 h-5" />}
+                  </>
+                ) : (
+                  <Camera className="text-gray-300 w-8 h-8" />
+                )}
+              </div>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                {subiendoFoto ? "Subiendo..." : "Toca la foto"}
+              </span>
             </div>
 
             <div className="space-y-1">
@@ -187,27 +197,27 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
               <Label className="font-black uppercase text-[10px] text-gray-400 tracking-widest">Servicios</Label>
               <div className="flex flex-wrap gap-2">
                 {servicios.map((s: any) => {
-                  const isSelected = serviciosSeleccionados.includes(s.id_servicio);
+                  const isSelected = serviciosSeleccionados.includes(s.id_servicio)
                   return (
                     <button
                       key={s.id_servicio}
                       type="button"
                       onClick={() => setServiciosSeleccionados(prev => isSelected ? prev.filter(x => x !== s.id_servicio) : [...prev, s.id_servicio])}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black border ${
-                          isSelected ? "bg-[#3D2B1F] text-white" : "bg-white text-gray-400 border-gray-100"
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black border transition-all ${
+                        isSelected ? "bg-[#3D2B1F] text-white border-[#3D2B1F]" : "bg-white text-gray-400 border-gray-100"
                       }`}
                     >
                       {s.nombre}
                     </button>
-                  );
+                  )
                 })}
               </div>
             </div>
 
             <Button 
               type="submit"
-              disabled={cargando || !nombre} 
-              className="w-full h-14 font-black uppercase rounded-2xl bg-[#3D2B1F] hover:bg-black text-white"
+              disabled={cargando || !nombre || subiendoFoto} 
+              className="w-full h-14 font-black uppercase rounded-2xl bg-[#3D2B1F] hover:bg-black text-white shadow-lg"
             >
               {cargando ? <Loader2 className="animate-spin" /> : editandoId ? "Actualizar" : "Registrar"}
             </Button>
@@ -217,16 +227,21 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
             {listaEmpleados.map((emp: any) => (
               <div 
                 key={emp.id_empleado} 
-                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm cursor-pointer"
+                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm cursor-pointer hover:border-[#7A9A75] transition-all"
                 onClick={() => prepararEdicion(emp)}
               >
                 <img src={emp.foto_url || "/api/placeholder/100/100"} className="h-12 w-12 rounded-full object-cover" />
-                <div className="flex-1 flex items-center justify-between">
-                  <p className="font-black text-[#3D2B1F] uppercase text-xs">{emp.nombre}</p>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); eliminarEmpleado(emp.id_empleado); }}>
-                    <Trash2 className="w-4 h-4 text-gray-300" />
-                  </Button>
-                </div>
+                <p className="font-black text-[#3D2B1F] uppercase text-xs flex-1">{emp.nombre}</p>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={(e: React.MouseEvent) => { 
+                    e.stopPropagation()
+                    eliminarEmpleado(emp.id_empleado)
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 text-gray-300 hover:text-red-500" />
+                </Button>
               </div>
             ))}
           </div>

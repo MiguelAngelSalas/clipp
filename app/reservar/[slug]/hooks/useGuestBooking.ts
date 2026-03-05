@@ -2,9 +2,8 @@ import { useState, useEffect, useMemo } from "react"
 import { formatDateLocal } from "@/lib/date-utils"
 
 export function useGuestBooking(idComercio: number) {
-  // Datos del comercio y catálogo
   const [comercio, setComercio] = useState<any>(null)
-  const [servicios, setServicios] = useState<any[]>([]) // NUEVO: Para el catálogo
+  const [servicios, setServicios] = useState<any[]>([])
   const [turnosOcupados, setTurnosOcupados] = useState<any[]>([])
   const [loadingData, setLoadingData] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -14,11 +13,11 @@ export function useGuestBooking(idComercio: number) {
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [nombre, setNombre] = useState("")
   const [telefono, setTelefono] = useState("")
-  
-  // NUEVO: Manejo del servicio seleccionado (ID, nombre y monto)
   const [selectedServicio, setSelectedServicio] = useState<any | null>(null)
+  
+  // 💈 NUEVO: Barbero seleccionado
+  const [selectedEmpleado, setSelectedEmpleado] = useState<any | null>(null)
 
-  // 1. Cargar Datos (Turnos, Comercio y Servicios)
   useEffect(() => {
     const fetchData = async () => {
       if (!idComercio) return
@@ -26,7 +25,7 @@ export function useGuestBooking(idComercio: number) {
         const [resTurnos, resComercio, resServicios] = await Promise.all([
             fetch(`/api/turnos?id_comercio=${idComercio}`),
             fetch(`/api/usuarios/publico?id_comercio=${idComercio}`),
-            fetch(`/api/servicios?id_comercio=${idComercio}`) // Traemos los servicios
+            fetch(`/api/servicios?id_comercio=${idComercio}`)
         ])
         
         if (resTurnos.ok) setTurnosOcupados(await resTurnos.json())
@@ -34,7 +33,7 @@ export function useGuestBooking(idComercio: number) {
         if (resServicios.ok) setServicios(await resServicios.json())
         
       } catch (e) { 
-        console.error("Error cargando datos iniciales:", e) 
+        console.error("Error cargando datos:", e) 
       } finally { 
         setLoadingData(false) 
       }
@@ -42,7 +41,6 @@ export function useGuestBooking(idComercio: number) {
     fetchData()
   }, [idComercio])
 
-  // 2. Calcular Slots (Grilla de horarios vacía basada en apertura/cierre)
   const horariosPosibles = useMemo(() => {
     if (!comercio) return []
     const slots = []
@@ -64,7 +62,7 @@ export function useGuestBooking(idComercio: number) {
     return slots
   }, [comercio])
 
-  // 3. Filtrar Horarios Libres
+  // 3. Filtrar Horarios Libres (AHORA FILTRA POR BARBERO 🕵️)
   const getHorariosLibres = (fecha: Date | undefined) => {
     if (!fecha) return []
     
@@ -74,19 +72,25 @@ export function useGuestBooking(idComercio: number) {
       .filter(t => {
         if (t.estado === 'cancelado') return false
         const turnoFechaStr = t.fecha.toString().split('T')[0]
-        return turnoFechaStr === fechaSeleccionadaStr
+        const coincideFecha = turnoFechaStr === fechaSeleccionadaStr
+        
+        // ⚖️ LOGICA DE FILTRADO: 
+        // Si el usuario eligió un barbero, solo bloqueamos los turnos de ESE barbero.
+        // Si no eligió ninguno (o la lógica es global), bloqueamos todo.
+        const coincideEmpleado = selectedEmpleado 
+          ? Number(t.id_empleado) === Number(selectedEmpleado.id_empleado)
+          : true;
+
+        return coincideFecha && coincideEmpleado
       })
-      .map(t => {
-        return t.hora.toString().split('T')[1].substring(0, 5) 
-      })
+      .map(t => t.hora.toString().split('T')[1].substring(0, 5))
       
     return horariosPosibles.filter(h => !horasOcupadas.includes(h))
   }
 
-  // 4. Enviar Reserva al Backend
   const reservarTurno = async () => {
-    // Validamos que tengamos fecha, hora, nombre, teléfono y el servicio elegido
-    if (!date || !selectedTime || !nombre || !telefono || !selectedServicio) return false
+    // ⚠️ Agregamos selectedEmpleado a la validación
+    if (!date || !selectedTime || !nombre || !telefono || !selectedServicio || !selectedEmpleado) return false
     
     setSubmitting(true)
     
@@ -96,13 +100,14 @@ export function useGuestBooking(idComercio: number) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           id_comercio: idComercio,
-          id_servicio: selectedServicio.id_servicio, // Guardamos el ID real
+          id_servicio: selectedServicio.id_servicio,
+          id_empleado: selectedEmpleado.id_empleado, // 👈 MANDAMOS EL BARBERO ELEGIDO
           fecha: formatDateLocal(date), 
           hora: selectedTime,           
           nombre_invitado: nombre,
           contacto_invitado: telefono,
-          servicio_nombre: selectedServicio.nombre, // Nombre del servicio para el historial
-          monto: Number(selectedServicio.precio),   // El precio configurado por el barbero
+          servicio_nombre: selectedServicio.nombre,
+          monto: Number(selectedServicio.precio),
           estado: "pendiente"
         })
       })
@@ -117,14 +122,15 @@ export function useGuestBooking(idComercio: number) {
 
   return {
     comercio, 
-    servicios, // La lista para que el cliente elija
+    servicios,
     loadingData, 
     submitting,
     date, setDate,
     selectedTime, setSelectedTime,
     nombre, setNombre,
     telefono, setTelefono,
-    selectedServicio, setSelectedServicio, // Para manejar la selección del paso 2
+    selectedServicio, setSelectedServicio,
+    selectedEmpleado, setSelectedEmpleado, // 💈 EXPORTAMOS EL NUEVO ESTADO
     horariosPosibles, 
     getHorariosLibres, 
     reservarTurno
