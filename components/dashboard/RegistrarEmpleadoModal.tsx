@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, Trash2, Users, Camera, CheckCircle2 } from "lucide-react"
+import { Loader2, Trash2, Users, Camera, CheckCircle2, X } from "lucide-react"
 import { toast } from "sonner"
 
 const CLOUD_NAME = "dylr49zlx"
@@ -22,6 +22,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   const [editandoId, setEditandoId] = React.useState<number | null>(null)
 
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
 
   const cargarEmpleados = React.useCallback(async () => {
     if (!idComercio) return
@@ -102,7 +103,10 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
     setNombre(emp.nombre)
     setFotoUrl(emp.foto_url || "")
     setPreview("")
-    setServiciosSeleccionados(emp.servicios.map((s: any) => s.id_servicio))
+    setServiciosSeleccionados(emp.servicios?.map((s: any) => s.id_servicio) || [])
+    
+    // Scrolleo suave hacia arriba para editar
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const eliminarEmpleado = async (id: number) => {
@@ -111,6 +115,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
       const res = await fetch(`/api/empleados?id_empleado=${id}`, { method: "DELETE" })
       if (res.ok) {
         toast.success("Eliminado")
+        if (editandoId === id) cancelarEdicion()
         cargarEmpleados()
       } else {
         const txt = await res.text()
@@ -154,18 +159,30 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-white rounded-3xl max-w-md border-none shadow-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <div className="p-8 overflow-y-auto custom-scrollbar">
+        <div ref={scrollRef} className="p-8 overflow-y-auto custom-scrollbar">
           <DialogHeader className="mb-6">
-            <DialogTitle className="text-2xl font-black text-[#3D2B1F] flex items-center gap-2 uppercase tracking-tighter">
-              <Users className="w-7 h-7 text-[#7A9A75]" /> Staff
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-2xl font-black text-[#3D2B1F] flex items-center gap-2 uppercase tracking-tighter">
+                <Users className="w-7 h-7 text-[#7A9A75]" /> Staff
+              </DialogTitle>
+              
+              {/* BOTÓN DINÁMICO PARA VOLVER A MODO REGISTRO */}
+              {editandoId && (
+                <button 
+                  onClick={cancelarEdicion}
+                  className="text-[10px] font-black text-[#7A9A75] border-2 border-[#7A9A75] px-3 py-1 rounded-full hover:bg-[#7A9A75] hover:text-white transition-all uppercase tracking-widest"
+                >
+                  + Nuevo
+                </button>
+              )}
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-6 border-b border-gray-100 pb-8">
             <div className="flex flex-col items-center gap-3">
               <div 
                 onClick={() => !subiendoFoto && fileInputRef.current?.click()}
-                className="h-24 w-24 rounded-full bg-gray-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative group"
+                className={`h-24 w-24 rounded-full bg-gray-50 border-4 ${editandoId ? 'border-[#7A9A75]' : 'border-white'} shadow-xl flex items-center justify-center overflow-hidden cursor-pointer relative group transition-all`}
               >
                 {preview || fotoUrl ? (
                   <>
@@ -179,7 +196,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
               </div>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                {subiendoFoto ? "Subiendo..." : "Toca la foto"}
+                {subiendoFoto ? "Subiendo..." : editandoId ? "Cambiar foto" : "Toca la foto"}
               </span>
             </div>
 
@@ -188,7 +205,7 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
               <Input 
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="h-12 border-gray-200 rounded-2xl font-bold"
+                className="h-12 border-gray-200 rounded-2xl font-bold focus:ring-[#7A9A75]"
                 required
               />
             </div>
@@ -214,33 +231,48 @@ export function RegistrarEmpleadoModal({ open, onOpenChange, servicios = [], idC
               </div>
             </div>
 
-            <Button 
-              type="submit"
-              disabled={cargando || !nombre || subiendoFoto} 
-              className="w-full h-14 font-black uppercase rounded-2xl bg-[#3D2B1F] hover:bg-black text-white shadow-lg"
-            >
-              {cargando ? <Loader2 className="animate-spin" /> : editandoId ? "Actualizar" : "Registrar"}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                type="submit"
+                disabled={cargando || !nombre || subiendoFoto} 
+                className={`flex-1 h-14 font-black uppercase rounded-2xl text-white shadow-lg transition-all ${editandoId ? 'bg-[#7A9A75] hover:bg-[#688563]' : 'bg-[#3D2B1F] hover:bg-black'}`}
+              >
+                {cargando ? <Loader2 className="animate-spin" /> : editandoId ? "Guardar Cambios" : "Registrar"}
+              </Button>
+              
+              {editandoId && (
+                <Button 
+                  type="button"
+                  variant="outline"
+                  onClick={cancelarEdicion}
+                  className="h-14 w-14 rounded-2xl border-gray-200 text-gray-400 hover:text-red-500"
+                >
+                  <X className="w-6 h-6" />
+                </Button>
+              )}
+            </div>
           </form>
 
           <div className="mt-8 space-y-4">
+            <p className="font-black uppercase text-[10px] text-gray-400 tracking-widest px-1">Equipo actual</p>
             {listaEmpleados.map((emp: any) => (
               <div 
                 key={emp.id_empleado} 
-                className="flex items-center gap-4 p-4 rounded-2xl border bg-white border-gray-100 shadow-sm cursor-pointer hover:border-[#7A9A75] transition-all"
+                className={`flex items-center gap-4 p-4 rounded-2xl border bg-white shadow-sm cursor-pointer transition-all ${editandoId === emp.id_empleado ? 'border-[#7A9A75] bg-[#7A9A75]/5' : 'border-gray-100 hover:border-gray-200'}`}
                 onClick={() => prepararEdicion(emp)}
               >
-                <img src={emp.foto_url || "/api/placeholder/100/100"} className="h-12 w-12 rounded-full object-cover" />
+                <img src={emp.foto_url || "/api/placeholder/100/100"} className="h-12 w-12 rounded-full object-cover border-2 border-white shadow-sm" />
                 <p className="font-black text-[#3D2B1F] uppercase text-xs flex-1">{emp.nombre}</p>
                 <Button 
                   variant="ghost" 
                   size="icon" 
+                  className="hover:bg-red-50"
                   onClick={(e: React.MouseEvent) => { 
                     e.stopPropagation()
                     eliminarEmpleado(emp.id_empleado)
                   }}
                 >
-                  <Trash2 className="w-4 h-4 text-gray-300 hover:text-red-500" />
+                  <Trash2 className="w-4 h-4 text-gray-300 hover:text-red-500 transition-colors" />
                 </Button>
               </div>
             ))}

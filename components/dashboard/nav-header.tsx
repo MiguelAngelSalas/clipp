@@ -8,6 +8,8 @@ import { ConfigModal } from "@/components/dashboard/config-modal"
 import { ServiciosModal } from "@/components/dashboard/ServiciosModal"
 import { RegistrarEmpleadoModal } from "./RegistrarEmpleadoModal" 
 import { toast } from "sonner"
+// 🛡️ Importamos NextAuth
+import { signOut, useSession } from "next-auth/react"
 
 interface NavHeaderProps {
   onNuevoTurno: () => void
@@ -25,17 +27,43 @@ export function NavHeader({
   onUpdateUser 
 }: NavHeaderProps) {
   
+  // Obtenemos la sesión para mostrar info del usuario logueado
+  const { data: session } = useSession()
+
   const [isConfigOpen, setIsConfigOpen] = React.useState(false)
   const [isServicesOpen, setServicesOpen] = React.useState(false)
   const [isEmployeesOpen, setEmployeesOpen] = React.useState(false) 
-  const [servicios, setServicios] = React.useState<any[]>([]) // 👈 Tipado corregido para evitar error 'never'
+  const [servicios, setServicios] = React.useState<any[]>([])
 
   const idParaTelegram = usuario?.id_comercio || usuario?.id;
 
-  // --- CARGA MANUAL DE SERVICIOS ---
-  // Usamos una función en lugar de useEffect para evitar bucles infinitos
+  // Lógica de Logout Real
+  const handleLogout = async () => {
+  // 1. Mostramos el toast de carga manualmente
+    const toastId = toast.loading('Cerrando sesión...');
+
+    try {
+      // 2. Ejecutamos el signOut SIN redirección automática
+      await signOut({ redirect: false });
+
+      // 3. Si todo salió bien, actualizamos el toast a éxito
+      toast.success('¡Hasta la próxima!', { id: toastId });
+
+      // 4. Pequeño delay para que el usuario vea el mensaje y redirección manual
+      setTimeout(() => {
+        window.location.href = "/"; 
+      }, 1500);
+
+    } catch (error) {
+      toast.error('Error al salir', { id: toastId });
+      console.error("Error en logout:", error);
+    }
+  }
+
   const handleOpenEmployees = async () => {
-    if (idParaTelegram && servicios.length === 0) {
+    setEmployeesOpen(true);
+    
+    if (idParaTelegram) {
       try {
         const res = await fetch(`/api/servicios?id_comercio=${idParaTelegram}`);
         const data = await res.json();
@@ -44,20 +72,22 @@ export function NavHeader({
         }
       } catch (err) {
         console.error("Error cargando servicios para empleados", err);
+        toast.error("No se pudieron actualizar los servicios");
       }
     }
-    setEmployeesOpen(true);
   };
 
   const handleShare = () => {
     const slug = usuario?.slug
     if (!slug) {
-        alert("Primero tenés que configurar el nombre de tu negocio (Slug).")
+        toast.error("Primero tenés que configurar el nombre de tu negocio (Slug).")
         return
     }
     const url = `${window.location.origin}/${slug}`
     navigator.clipboard.writeText(url)
-    toast.success(`¡Comparti el link de la turnera!\n\n${url}`)
+    toast.success(`¡Link copiado! Ya podés compartirlo.`, {
+      description: url
+    })
   }
 
   return (
@@ -79,15 +109,16 @@ export function NavHeader({
               onNuevoTurnoClick={onNuevoTurno} 
               onRegistrarCobroClick={onRegistrarCobro}
               onConfigClick={() => setIsConfigOpen(true)} 
-              onLogoutClick={onVolver}
+              onLogoutClick={handleLogout} // 👈 Ahora usa la función de NextAuth
               onShareClick={handleShare} 
               onServicesClick={() => setServicesOpen(true)}
-              onEmployeesClick={handleOpenEmployees} // 👈 Cambiado a la función de carga manual
+              onEmployeesClick={handleOpenEmployees}
               idComercio={idParaTelegram} 
             />
             
-            <div className="h-10 w-10 rounded-full bg-[#4A4A4A] flex items-center justify-center text-[#D6Dac2] font-bold shadow-md border border-migue/30 uppercase">
-                {usuario?.nombre_empresa?.charAt(0) || "M"}
+            {/* Avatar con la inicial del usuario logueado o del comercio */}
+            <div className="h-10 w-10 rounded-full bg-[#4A4A4A] flex items-center justify-center text-[#D6Dac2] font-bold shadow-md border border-migue/30 uppercase cursor-default">
+                {session?.user?.name?.charAt(0) || usuario?.nombre_empresa?.charAt(0) || "M"}
             </div>
         </div>
 
@@ -105,16 +136,12 @@ export function NavHeader({
           idComercio={idParaTelegram}
         />
 
-        {/* --- MODAL DE EMPLEADOS --- */}
         <RegistrarEmpleadoModal
           open={isEmployeesOpen}
           onOpenChange={setEmployeesOpen}
           servicios={servicios}
           idComercio={idParaTelegram}
-          usuario={usuario} // 👈 CRÍTICO: Pasamos el usuario para que Cloudinary tenga el slug y cree las carpetas
-          onGuardar={() => {
-            toast.success("¡Operación exitosa!");
-          }}
+          usuario={usuario}
         />
     </div>
   )

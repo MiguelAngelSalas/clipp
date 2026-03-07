@@ -9,7 +9,7 @@ export function SubscriptionModal({ isOpen, onClose, userEmail, nombreComercio }
   
   const handleWhatsAppContact = () => {
     // Tu número de WhatsApp (con código de país, ej: 54911...)
-    const suNumero = "54911XXXXXXXX" 
+    const suNumero = "5491168800053" 
     const mensaje = `Hola! Soy de ${nombreComercio} (${userEmail}). Me gustaría activar mis 15 días de prueba gratis en Clipp 🌿.`
     const url = `https://wa.me/${suNumero}?text=${encodeURIComponent(mensaje)}`
     

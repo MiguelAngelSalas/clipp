@@ -15,7 +15,7 @@ export function useGuestBooking(idComercio: number) {
   const [telefono, setTelefono] = useState("")
   const [selectedServicio, setSelectedServicio] = useState<any | null>(null)
   
-  // 💈 NUEVO: Barbero seleccionado
+  // 💈 Barbero seleccionado
   const [selectedEmpleado, setSelectedEmpleado] = useState<any | null>(null)
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export function useGuestBooking(idComercio: number) {
     return slots
   }, [comercio])
 
-  // 3. Filtrar Horarios Libres (AHORA FILTRA POR BARBERO 🕵️)
+  // 3. Filtrar Horarios Libres (FIX: Exclusividad por barbero 🕵️)
   const getHorariosLibres = (fecha: Date | undefined) => {
     if (!fecha) return []
     
@@ -70,26 +70,34 @@ export function useGuestBooking(idComercio: number) {
     
     const horasOcupadas = turnosOcupados
       .filter(t => {
+        // 1. Ignoramos turnos cancelados
         if (t.estado === 'cancelado') return false
+
+        // 2. Verificamos la fecha (YYYY-MM-DD)
         const turnoFechaStr = t.fecha.toString().split('T')[0]
         const coincideFecha = turnoFechaStr === fechaSeleccionadaStr
         
-        // ⚖️ LOGICA DE FILTRADO: 
-        // Si el usuario eligió un barbero, solo bloqueamos los turnos de ESE barbero.
-        // Si no eligió ninguno (o la lógica es global), bloqueamos todo.
+        // 3. 🚨 FIX CRÍTICO:
+        // Si hay un barbero elegido, solo bloqueamos las horas de ESE barbero.
+        // Si NO hay barbero elegido todavía (ej. en el paso del calendario), 
+        // no bloqueamos nada o podríamos bloquear solo si TODOS los barberos están ocupados.
+        // Pero para tu flujo, lo correcto es filtrar por el seleccionado.
         const coincideEmpleado = selectedEmpleado 
           ? Number(t.id_empleado) === Number(selectedEmpleado.id_empleado)
-          : true;
+          : false; // 👈 Cambiado de 'true' a 'false' para no pisar/bloquear de más
 
         return coincideFecha && coincideEmpleado
       })
-      .map(t => t.hora.toString().split('T')[1].substring(0, 5))
+      .map(t => {
+        // Extraemos HH:mm del campo hora
+        const horaStr = t.hora.toString();
+        return horaStr.includes('T') ? horaStr.split('T')[1].substring(0, 5) : horaStr.substring(0, 5);
+      })
       
     return horariosPosibles.filter(h => !horasOcupadas.includes(h))
   }
 
   const reservarTurno = async () => {
-    // ⚠️ Agregamos selectedEmpleado a la validación
     if (!date || !selectedTime || !nombre || !telefono || !selectedServicio || !selectedEmpleado) return false
     
     setSubmitting(true)
@@ -101,7 +109,7 @@ export function useGuestBooking(idComercio: number) {
         body: JSON.stringify({
           id_comercio: idComercio,
           id_servicio: selectedServicio.id_servicio,
-          id_empleado: selectedEmpleado.id_empleado, // 👈 MANDAMOS EL BARBERO ELEGIDO
+          id_empleado: selectedEmpleado.id_empleado, 
           fecha: formatDateLocal(date), 
           hora: selectedTime,           
           nombre_invitado: nombre,
@@ -130,7 +138,7 @@ export function useGuestBooking(idComercio: number) {
     nombre, setNombre,
     telefono, setTelefono,
     selectedServicio, setSelectedServicio,
-    selectedEmpleado, setSelectedEmpleado, // 💈 EXPORTAMOS EL NUEVO ESTADO
+    selectedEmpleado, setSelectedEmpleado, 
     horariosPosibles, 
     getHorariosLibres, 
     reservarTurno

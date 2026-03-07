@@ -8,10 +8,12 @@ import {
   DollarSign, 
   Pencil, 
   UserCheck, 
-  MessageCircle 
+  MessageCircle,
+  User // 👈 Agregamos User para el barbero
 } from "lucide-react"
 
 import { formatTimeDisplay } from "@/lib/date-utils"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar" // 👈 Por si tenés fotos
 
 import {
   AlertDialog,
@@ -43,7 +45,7 @@ interface TurnoCardProps {
   onCancel: (id: number) => void
   onFinalizar: (turno: any) => void
   onNotify: () => void 
-  onConfirm: () => void // 🔥 Nueva prop para confirmación manual
+  onConfirm: () => void
 }
 
 export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onConfirm }: TurnoCardProps) {
@@ -53,6 +55,11 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
   const esRecurrenteConOtroNombre = 
     turno.clientes?.nombre_cliente && 
     turno.clientes.nombre_cliente !== turno.nombre_invitado;
+
+  // 💈 LÓGICA PARA EL BARBERO
+  // Dependiendo de cómo traigas la data de Supabase/Neon:
+  const barberoNombre = turno.empleados?.nombre || turno.nombre_empleado || "Sin asignar";
+  const barberoFoto = turno.empleados?.foto_url;
 
   return (
     <div className={`${THEME.card} p-4 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 group transition-all hover:shadow-md`}>
@@ -76,8 +83,21 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
             </span>
           </div>
           
+          {/* 💈 INFO DEL BARBERO (NUEVO) */}
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+              <Avatar className="h-4 w-4">
+                <AvatarImage src={barberoFoto} />
+                <AvatarFallback><User className="w-2 h-2" /></AvatarFallback>
+              </Avatar>
+              <span className="text-[11px] font-black text-slate-600 uppercase tracking-tight">
+                {barberoNombre}
+              </span>
+            </div>
+          </div>
+
           {esRecurrenteConOtroNombre && (
-            <p className="text-[10px] text-[#7A9A75] font-bold italic flex items-center gap-1 mt-0.5 opacity-90">
+            <p className="text-[10px] text-[#7A9A75] font-bold italic flex items-center gap-1 mt-1 opacity-90">
               <UserCheck className="w-3 h-3" /> Frecuente: {turno.clientes.nombre_cliente}
             </p>
           )}
@@ -97,17 +117,15 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
         </div>
       </div>
 
-      {/* DERECHA: ACCIONES */}
+      {/* DERECHA: ACCIONES (Sin cambios, se mantiene igual) */}
       <div className="flex items-center gap-2 self-end sm:self-center">
         {turno.estado !== 'finalizado' && turno.estado !== 'cancelado' && (
           <>
             {turno.estado === 'pendiente' && (
               <>
-                {/* BOTÓN CONFIRMAR MANUAL */}
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  title="Confirmar Turno"
                   className="border-blue-500 text-blue-600 hover:bg-blue-50 h-8 px-3"
                   onClick={onConfirm}
                 >
@@ -118,7 +136,6 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  title="Notificar por WhatsApp"
                   className="border-green-500 text-green-600 hover:bg-green-50 h-8 px-3"
                   onClick={onNotify}
                 >
@@ -129,7 +146,7 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
             )}
 
             <Button 
-              variant="ghost" size="icon" title="Modificar Turno"
+              variant="ghost" size="icon"
               className="h-8 w-8 text-blue-400 hover:text-blue-600 hover:bg-blue-50"
               onClick={() => onEdit(turno)} 
             >
@@ -139,7 +156,7 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
             <AlertDialog>
                 <AlertDialogTrigger asChild>
                     <Button 
-                        variant="ghost" size="icon" title="Cancelar Turno"
+                        variant="ghost" size="icon"
                         className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
                     >
                         <XCircle className="w-5 h-5" />
@@ -149,7 +166,7 @@ export function TurnoCard({ turno, onEdit, onCancel, onFinalizar, onNotify, onCo
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Cancelar turno?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Vas a cancelar el turno de <strong>{nombreParaMostrar}</strong>. Esta acción liberará el horario.
+                            Vas a cancelar el turno de <strong>{nombreParaMostrar}</strong>.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

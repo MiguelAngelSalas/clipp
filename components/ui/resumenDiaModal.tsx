@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { X, Wallet, Smartphone, Scissors, Clock, ShoppingBag } from "lucide-react"
+import { X, Wallet, Smartphone, Scissors, Clock, ShoppingBag, User } from "lucide-react"
 import { formatTimeDisplay } from "@/lib/date-utils" 
 
 interface ResumenDiaModalProps {
@@ -38,7 +38,6 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
 
   const totalCajaReal = totalEfectivo + totalDigital;
 
-  // Ordenamos por created_at para que la cronología sea la del cobro real
   const todosLosMovimientos = [...turnos, ...extras].sort((a, b) => {
     const dateA = new Date(a.created_at || a.hora || a.fecha).getTime();
     const dateB = new Date(b.created_at || b.hora || b.fecha).getTime();
@@ -80,7 +79,9 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
                   ? "Cobro Manual / Producto" 
                   : (item.servicio_nombre || item.servicio || "Corte/Servicio");
 
-                // CAMBIO AQUÍ: Usamos el timestamp de creación (el cobro)
+                // Lógica del barbero para el resumen
+                const barberoNombre = item.empleados?.nombre || item.nombre_empleado;
+
                 const horaDisplay = formatTimeDisplay(item.created_at || item.hora || item.fecha);
 
                 return (
@@ -108,6 +109,15 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
                                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                         {subtitulo}
                                     </span>
+                                    
+                                    {/* MUESTRA EL BARBERO SI EXISTE */}
+                                    {estaFinalizado && barberoNombre && (
+                                      <div className="flex items-center gap-1 mt-0.5 opacity-70">
+                                        <User className="w-3 h-3 text-[#7A9A75]" />
+                                        <span className="text-[9px] font-bold uppercase text-[#7A9A75]">{barberoNombre}</span>
+                                      </div>
+                                    )}
+
                                     {estaFinalizado && (
                                         <div className="mt-1.5">
                                             <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase flex items-center w-fit gap-1.5 ${
@@ -139,7 +149,6 @@ export function ResumenDiaModal({ open, onOpenChange, date, turnos, extras = [] 
           </div>
           
           <div className="p-8 border-t border-gray-400/20 bg-white/70 backdrop-blur-xl">
-            {/* ... Resto del footer igual ... */}
             <div className="grid grid-cols-2 gap-6 mb-8">
                 <div className="relative overflow-hidden p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 mb-1">Efectivo en Caja</p>

@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, AlertCircle, X } from "lucide-react"
-import { useLoginLogic } from "../../app/api/auth/hooks/useLoginLogic"
-import { LoginSuccess } from "./LoginSucces"
+// 🛡️ IMPORTAMOS NEXT-AUTH
+import { signIn, useSession } from "next-auth/react"
+import { toast } from "sonner"
 
 interface LoginPageProps {
   onLoginSuccess: () => void 
@@ -16,46 +17,67 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPageProps) {
-  
-  // 1. Inicializamos el router
   const router = useRouter()
+  const { status } = useSession()
 
-  // 2. EFECTO "PATOVICA": Si ya hay usuario, al Dashboard
+  // ESTADOS LOCALES
+  const [email, setEmail] = React.useState("")
+  const [password, setPassword] = React.useState("")
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [mode, setMode] = React.useState<'login' | 'recovery'>('login')
+
+  // EFECTO PATOVICA: Si detecta sesión activa, manda al home
   React.useEffect(() => {
-    // 👇 ACÁ ESTÁ EL CAMBIO: Buscamos 'usuario_clipp'
-    const usuarioGuardado = localStorage.getItem("usuario_clipp") 
-    
-    // Si existe el usuario guardado (no es null ni vacío), redirigimos
-    if (usuarioGuardado) {
-      console.log("Sesión encontrada, redirigiendo al Dashboard...")
-      router.push("/dashboard") 
+    if (status === "authenticated") {
+      router.push("/")
     }
-  }, [router])
+  }, [status, router])
 
-  // --- LÓGICA ORIGINAL DEL LOGIN ---
-  const {
-    email, setEmail,
-    password, setPassword,
-    mode, setMode, 
-    loading, error, shake, resetSent, setResetSent,
-    handleSubmit, setError
-  } = useLoginLogic(onLoginSuccess)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
-  // 3. Pantalla de Éxito de Recuperación
-  if (resetSent) {
-    return (
-        <div className="min-h-screen bg-migue-beige flex items-center justify-center p-4">
-            <LoginSuccess onBack={() => { setResetSent(false); setMode('login'); }} />
-        </div>
-    )
+    if (mode === 'recovery') {
+      toast.info("Función de recuperación en mantenimiento")
+      setLoading(false)
+      return
+    }
+
+    try {
+      // 🔥 LLAMADA AL MOTOR DE NEXT-AUTH
+      const result = await signIn("credentials", {
+        email: email.trim(),
+        password: password,
+        redirect: false, // Manejamos la redirección a mano para evitar cuelgues
+      })
+
+      if (result?.error) {
+        // Si el authorize de route.ts devuelve null o error
+        setError("Email o contraseña incorrectos. Revisá bien los datos.")
+        setLoading(false)
+      } else if (result?.ok) {
+        toast.success("¡Acceso concedido! Entrando...")
+        
+        // Ejecutamos el callback del padre si existe
+        if (onLoginSuccess) onLoginSuccess()
+
+        // 🚀 REDIRECCIÓN FORZADA: 
+        // Usamos window.location para asegurar que el Middleware y las cookies se refresquen bien
+        window.location.href = "/" 
+      }
+    } catch (err) {
+      setError("Hubo un problema de conexión con el servidor.")
+      setLoading(false)
+    }
   }
 
-  // 4. Renderizamos el Formulario
   const isRecovery = mode === 'recovery'
 
   return (
-    <div className="min-h-screen bg-migue-beige flex items-center justify-center p-4">
-      <div className={`bg-white/80 backdrop-blur-sm border border-migue/20 shadow-xl rounded-2xl p-8 w-full max-w-md space-y-6 transition-transform duration-300 ${shake ? 'animate-shake' : ''}`}>
+    <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center p-4 font-sans">
+      <div className={`bg-white border border-migue/20 shadow-xl rounded-2xl p-8 w-full max-w-md space-y-6 animate-in fade-in zoom-in duration-300`}>
         
         {/* HEADER */}
         <div className="text-center space-y-2">
@@ -70,34 +92,36 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
         </div>
 
         {/* FORMULARIO */}
-        <div className="space-y-4 pt-4">
-            {/* Mensaje de Error */}
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             {error && (
-              <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+              <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <span className="text-sm font-semibold">{error}</span>
-                <button className="ml-auto" onClick={() => setError(null)}>
+                <button type="button" className="ml-auto" onClick={() => setError(null)}>
                   <X className="w-4 h-4 opacity-40 hover:opacity-100" />
                 </button>
               </div>
             )}
 
-            {/* Input Email */}
             <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input 
-                  id="email" type="email" placeholder="barberia@ejemplo.com" 
-                  className="bg-white h-12 border-migue/20"
-                  value={email} onChange={(e) => setEmail(e.target.value)}
+                  id="email" 
+                  type="email" 
+                  placeholder="barberia@ejemplo.com" 
+                  className="bg-white h-12 border-migue/20 focus:ring-2 focus:ring-[#7A9A75] outline-none"
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
             </div>
 
-            {/* Input Password */}
             {!isRecovery && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="space-y-2">
                   <div className="flex items-center justify-between">
                       <Label htmlFor="password">Contraseña</Label>
                       <button 
+                        type="button"
                         onClick={() => { setMode('recovery'); setError(null); }}
                         className="text-xs text-[#7A9A75] hover:underline font-bold"
                       >
@@ -105,32 +129,34 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
                       </button>
                   </div>
                   <Input 
-                    id="password" type="password" 
-                    className="bg-white border-migue/20 h-12"
-                    value={password} onChange={(e) => setPassword(e.target.value)}
+                    id="password" 
+                    type="password" 
+                    className="bg-white border-migue/20 h-12 focus:ring-2 focus:ring-[#7A9A75] outline-none"
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                   />
               </div>
             )}
 
-            {/* Botón Principal */}
             <Button 
-              onClick={handleSubmit} 
+              type="submit" 
               disabled={loading}    
-              className="w-full bg-[#7A9A75] hover:bg-[#688563] text-white font-bold py-7 text-lg shadow-md rounded-xl mt-4"
+              className="w-full bg-[#7A9A75] hover:bg-[#688563] text-white font-bold py-7 text-lg shadow-md rounded-xl mt-4 transition-all active:scale-[0.98]"
             >
                 {loading ? "PROCESANDO..." : (isRecovery ? "ENVIAR LINK" : "INICIAR SESIÓN")}
             </Button>
 
-            {/* Botón Cancelar */}
             {isRecovery && (
               <button 
+                type="button"
                 onClick={() => { setMode('login'); setError(null); }}
                 className="w-full text-sm text-[#7A9A75] font-bold hover:underline"
               >
                 Cancelar y volver al login
               </button>
             )}
-        </div>
+        </form>
 
         {/* FOOTER */}
         {!isRecovery && (
@@ -144,7 +170,7 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
 
         <button 
           onClick={onVolver} 
-          className="flex items-center justify-center w-full text-migue-gris/50 hover:text-migue-gris text-sm mt-4 group"
+          className="flex items-center justify-center w-full text-migue-gris/50 hover:text-migue-gris text-sm mt-4 group transition-colors"
         >
             <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" /> 
             Volver al inicio
