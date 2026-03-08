@@ -64,7 +64,7 @@ export function NosotrosSection({ onVolver }: { onVolver: () => void }) {
           
           <h2 className="text-4xl md:text-5xl font-serif text-[#3A3A3A] mb-6 tracking-tighter">Sobre Clipp</h2>
           <p className="text-lg text-migue-gris max-w-2xl mx-auto leading-relaxed">
-            Clipp es una solución diseñada para <strong>optimizar la gestión operativa de barberías</strong>. 
+            Clipp es una solución diseñada para <strong>optimizar la gestión operativa de barberías/esteticas</strong>. 
             Nuestro enfoque es brindar agilidad al profesional y comodidad al cliente.
           </p>
         </div>
