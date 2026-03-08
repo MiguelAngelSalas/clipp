@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// --- OBTENER EMPLEADOS ---
+// --- OBTENER EMPLEADOS (Con Filtro de Servicio 🛡️) ---
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id_comercio = searchParams.get("id_comercio");
+  const id_servicio = searchParams.get("id_servicio"); // 👈 Capturamos el servicio si viene del turnero
 
   if (!id_comercio) {
     return NextResponse.json({ message: "Falta id_comercio" }, { status: 400 });
@@ -14,7 +15,16 @@ export async function GET(request: Request) {
     const empleados = await prisma.empleados.findMany({
       where: { 
         id_comercio: Number(id_comercio),
-        activo: true 
+        activo: true,
+        // 🛡️ FILTRO CLAVE: Solo empleados que ofrecen este servicio específico
+        // Si no viene id_servicio, este bloque se ignora y trae a todos.
+        ...(id_servicio ? {
+          servicios: {
+            some: {
+              id_servicio: Number(id_servicio)
+            }
+          }
+        } : {})
       },
       include: {
         servicios: true 
@@ -24,6 +34,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(empleados);
   } catch (error) {
+    console.error("Error al obtener empleados:", error);
     return NextResponse.json({ message: "Error al obtener empleados" }, { status: 500 });
   }
 }
@@ -41,7 +52,7 @@ export async function POST(request: Request) {
     const nuevoEmpleado = await prisma.empleados.create({
       data: {
         nombre,
-        foto_url: foto_url || null, // Aseguramos que si no hay, guarde null
+        foto_url: foto_url || null,
         id_comercio: Number(id_comercio),
         servicios: {
           connect: serviciosIds?.map((id: number) => ({ id_servicio: id })) || []
@@ -80,11 +91,10 @@ export async function DELETE(request: Request) {
   }
 }
 
-// --- ACTUALIZAR EMPLEADO (CORREGIDO ✅) ---
+// --- ACTUALIZAR EMPLEADO ---
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    // 👈 Agregamos foto_url que antes no estaba en el PUT
     const { id_empleado, nombre, foto_url, serviciosIds } = body;
 
     if (!id_empleado) {
@@ -95,9 +105,9 @@ export async function PUT(request: Request) {
       where: { id_empleado: Number(id_empleado) },
       data: {
         nombre: nombre,
-        foto_url: foto_url, // 👈 Ahora Prisma sí va a guardar la URL de la foto al editar
+        foto_url: foto_url,
         servicios: {
-          // 'set' reemplaza todas las conexiones anteriores por estas nuevas
+          // Reemplaza todas las conexiones anteriores por estas nuevas
           set: serviciosIds?.map((id: number) => ({ id_servicio: id })) || []
         }
       },
