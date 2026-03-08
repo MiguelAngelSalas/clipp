@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { enviarNotificacionTelegram } from "@/lib/telegram";
 import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,17 +21,28 @@ const formatearHora = (horaInput: string, fechaInput: string) => {
   };
 };
 
-// 1. GET: Privacidad Selectiva (Blindado 🛡️)
+// 1. GET: Privacidad Selectiva + Blindaje Anti-Espionaje 🛡️
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(); 
-    const idComercio = new URL(req.url).searchParams.get("id_comercio");
-    if (!idComercio) return NextResponse.json({ message: "Falta ID" }, { status: 400 });
+    const session = await getServerSession(authOptions); 
+    const { searchParams } = new URL(req.url);
+    const idComercioUrl = searchParams.get("id_comercio");
+
+    if (!idComercioUrl) return NextResponse.json({ message: "Falta ID" }, { status: 400 });
+
+    // 🛡️ LÓGICA DE SEGURIDAD:
+    // Forzamos el tipado con (session?.user as any) para que no tire error de compilación
+    let idFinal = Number(idComercioUrl);
+    const userSession = session?.user as any; 
+    
+    if (userSession?.id_comercio) {
+      idFinal = Number(userSession.id_comercio);
+    }
 
     // Limpieza automática
     await prisma.turnos.updateMany({
       where: { 
-        id_comercio: Number(idComercio), 
+        id_comercio: idFinal, 
         fecha: { lt: getInicioDelDiaArg() }, 
         estado: "pendiente" 
       },
@@ -38,7 +50,7 @@ export async function GET(req: Request) {
     });
 
     const turnos = await prisma.turnos.findMany({
-      where: { id_comercio: Number(idComercio) },
+      where: { id_comercio: idFinal },
       orderBy: { hora: 'asc' },
       include: { 
         clientes: { select: { nombre_cliente: true, whatsapp: true } },
@@ -46,7 +58,6 @@ export async function GET(req: Request) {
       }
     });
 
-    // 🛡️ SI NO HAY SESIÓN: Filtramos la data sensible para el público
     if (!session) {
       const turnosProtegidos = turnos.map(turno => ({
         id_turno: turno.id_turno,
@@ -55,7 +66,6 @@ export async function GET(req: Request) {
         id_empleado: turno.id_empleado,
         empleados: turno.empleados,
         estado: turno.estado,
-        // Ocultamos la identidad
         nombre_invitado: "Reservado",
         contacto_invitado: "Privado",
         servicio_nombre: "Ocupado", 
@@ -64,7 +74,6 @@ export async function GET(req: Request) {
       return NextResponse.json(turnosProtegidos);
     }
 
-    // SI HAY SESIÓN: Mandamos todo (tus hermanos ven la agenda completa)
     return NextResponse.json(turnos);
   } catch (error) {
     console.error("Error en GET turnos:", error);
@@ -72,18 +81,22 @@ export async function GET(req: Request) {
   }
 }
 
-// 2. POST: Crear + Protección de Origen
+// 2. POST: Crear + Blindaje de ID
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
+    const userSession = session?.user as any;
     const body = await req.json();
-    const idComercio = body.id_comercio || body.idComercio;
+    
+    const idComercioFinal = userSession?.id_comercio 
+      ? Number(userSession.id_comercio) 
+      : Number(body.id_comercio || body.idComercio);
+
     const { 
         nombre_invitado, contacto_invitado, fecha, 
         id_servicio, servicio, hora, origen, id_empleado 
     } = body;
 
-    // 🛡️ Evitamos que un cliente mande 'origen: dashboard' para saltar reglas
     if (origen === "dashboard" && !session) {
       return NextResponse.json({ message: "No autorizado" }, { status: 401 });
     }
@@ -92,12 +105,12 @@ export async function POST(req: Request) {
     const fechaFinal = new Date(`${fecha}T12:00:00.000Z`);
 
     const cliente = await prisma.clientes.upsert({
-      where: { id_comercio_whatsapp: { id_comercio: Number(idComercio), whatsapp: contacto_invitado } },
+      where: { id_comercio_whatsapp: { id_comercio: idComercioFinal, whatsapp: contacto_invitado } },
       update: { nombre_cliente: nombre_invitado },
-      create: { id_comercio: Number(idComercio), nombre_cliente: nombre_invitado, whatsapp: contacto_invitado }
+      create: { id_comercio: idComercioFinal, nombre_cliente: nombre_invitado, whatsapp: contacto_invitado }
     }).catch(async () => {
         return await prisma.clientes.findFirst({ 
-          where: { whatsapp: contacto_invitado, id_comercio: Number(idComercio) }
+          where: { whatsapp: contacto_invitado, id_comercio: idComercioFinal }
         });
     });
 
@@ -108,7 +121,7 @@ export async function POST(req: Request) {
 
     const nuevoTurno = await prisma.turnos.create({
       data: {
-        id_comercio: Number(idComercio),
+        id_comercio: idComercioFinal,
         id_cliente: cliente?.id_cliente,
         id_servicio: infoServicio?.id_servicio || undefined,
         id_empleado: id_empleado ? Number(id_empleado) : undefined,
@@ -123,9 +136,8 @@ export async function POST(req: Request) {
       include: { empleados: true }
     });
 
-    // Notificación Telegram
     const comercio = await prisma.comercios.findUnique({
-      where: { id_comercio: Number(idComercio) },
+      where: { id_comercio: idComercioFinal },
       select: { telegramChatId: true, nombre_empresa: true }
     });
 
@@ -145,6 +157,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(nuevoTurno);
   } catch (error: any) {
+    console.error("Error en POST turnos:", error);
     return NextResponse.json({ message: "Error interno" }, { status: 500 });
   }
 }
@@ -152,32 +165,37 @@ export async function POST(req: Request) {
 // 3. PUT: Actualizar (Solo Admin 🔐)
 export async function PUT(req: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
+    const userSession = session?.user as any;
     
-    // 🛡️ Nadie modifica un turno si no está logueado
-    if (!session) {
-      return NextResponse.json({ message: "No tenés permiso para editar turnos" }, { status: 401 });
+    if (!userSession?.id_comercio) {
+      return NextResponse.json({ message: "No tenés permiso" }, { status: 401 });
     }
 
     const body = await req.json();
-    const { 
-      id_turno, estado, monto, metodoPago, nombre_invitado,
-      id_servicio, id_empleado, servicio_nombre, hora, fecha, contacto_invitado,
-    } = body;
+    const { id_turno, ...datosUpdate } = body;
+
+    const turnoOriginal = await prisma.turnos.findUnique({
+        where: { id_turno: Number(id_turno) }
+    });
+
+    if (!turnoOriginal || turnoOriginal.id_comercio !== Number(userSession.id_comercio)) {
+        return NextResponse.json({ message: "Este turno no te pertenece" }, { status: 403 });
+    }
 
     const turnoActualizado = await prisma.turnos.update({
       where: { id_turno: Number(id_turno) },
       data: {
-        estado: estado || undefined,
-        monto: monto ? new Prisma.Decimal(monto.toString()) : undefined,
-        metodo_pago: metodoPago || undefined,
-        nombre_invitado: nombre_invitado || undefined,
-        id_servicio: id_servicio ? Number(id_servicio) : undefined,
-        id_empleado: id_empleado ? Number(id_empleado) : undefined,
-        servicio_nombre: servicio_nombre || undefined,
-        hora: hora ? new Date(`1970-01-01T${hora.substring(0, 5)}:00.000Z`) : undefined, 
-        fecha: fecha ? new Date(fecha) : undefined, 
-        contacto_invitado: contacto_invitado || undefined,
+        estado: datosUpdate.estado || undefined,
+        monto: datosUpdate.monto ? new Prisma.Decimal(datosUpdate.monto.toString()) : undefined,
+        metodo_pago: datosUpdate.metodoPago || undefined,
+        nombre_invitado: datosUpdate.nombre_invitado || undefined,
+        id_servicio: datosUpdate.id_servicio ? Number(datosUpdate.id_servicio) : undefined,
+        id_empleado: datosUpdate.id_empleado ? Number(datosUpdate.id_empleado) : undefined,
+        servicio_nombre: datosUpdate.servicio_nombre || undefined,
+        hora: datosUpdate.hora ? new Date(`1970-01-01T${datosUpdate.hora.substring(0, 5)}:00.000Z`) : undefined, 
+        fecha: datosUpdate.fecha ? new Date(datosUpdate.fecha) : undefined, 
+        contacto_invitado: datosUpdate.contacto_invitado || undefined,
       },
       include: { 
         clientes: { select: { nombre_cliente: true } },

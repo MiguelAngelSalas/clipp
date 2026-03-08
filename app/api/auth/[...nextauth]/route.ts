@@ -1,9 +1,11 @@
 import NextAuth from "next-auth";
+import type { NextAuthOptions } from "next-auth"; // Importamos el tipo para mejor soporte
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-const handler = NextAuth({
+// 🛡️ 1. Definimos authOptions por separado y lo exportamos
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -43,17 +45,15 @@ const handler = NextAuth({
 
           console.log("🚀 LOGIN EXITOSO:", usuario.nombre_empresa);
 
-          // Retornamos el objeto con TODO lo que vamos a necesitar después
           return {
             id: usuario.id_comercio.toString(),
             name: usuario.nombre_empresa,
             email: usuario.email_unico,
             id_comercio: usuario.id_comercio,
-            slug: usuario.slug, // 👈 IMPORTANTE
-            nombre_empresa: usuario.nombre_empresa, // 👈 IMPORTANTE
+            slug: usuario.slug,
+            nombre_empresa: usuario.nombre_empresa,
             suscrito: usuario.suscrito,
           };
-
         } catch (error: any) {
           throw new Error(error.message || "Error en el servidor");
         }
@@ -62,7 +62,6 @@ const handler = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }: any) {
-      // Si el login es exitoso, 'user' tiene los datos del return de authorize
       if (user) {
         token.id = user.id;
         token.id_comercio = user.id_comercio;
@@ -73,15 +72,12 @@ const handler = NextAuth({
       return token;
     },
     async session({ session, token }: any) {
-      // Pasamos los datos del token a la sesión del frontend
       if (session.user) {
         session.user.id = token.id;
         session.user.id_comercio = token.id_comercio;
         session.user.slug = token.slug;
         session.user.nombre_empresa = token.nombre_empresa;
         session.user.suscrito = token.suscrito;
-        
-        // Forzamos que el 'name' de la sesión sea el de la empresa
         session.user.name = token.nombre_empresa;
       }
       return session;
@@ -94,6 +90,9 @@ const handler = NextAuth({
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
-});
+};
+
+// 🛡️ 2. El handler usa las opciones definidas arriba
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

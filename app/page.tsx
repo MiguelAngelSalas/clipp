@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-// 🛡️ Importamos los hooks de NextAuth
 import { useSession, signOut } from "next-auth/react"
 import { LandingPage } from "@/components/ui/landingPage" 
 import { LoginPage } from "@/components/ui/loginPage" 
@@ -10,21 +9,51 @@ import { AgendaView } from "@/components/dashboard/agenda-view"
 import { NosotrosSection } from "@/components/ui/nosotrosSection"
 
 export default function Home() { 
-  // 1. Obtenemos la sesión real del búnker
   const { data: session, status } = useSession()
-  
   const [vista, setVista] = React.useState<"landing" | "login" | "register" | "agenda" | "nosotros">("landing")
   const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => { setMounted(true) }, [])
 
-  // --- SINCRONIZACIÓN DE VISTAS ---
-  const navegarA = (nuevaVista: "landing" | "login" | "register" | "agenda" | "nosotros") => {
-    window.history.pushState({ vista: nuevaVista }, "")
-    setVista(nuevaVista)
-  }
+  // --- 🛡️ SINCRONIZACIÓN POR HASH (FLECHA ATRÁS) ---
+  React.useEffect(() => {
+    const sincronizarVistaConURL = () => {
+      // Leemos el # de la URL (ej: #login)
+      const hash = window.location.hash.replace('#', '') as any;
+      
+      if (hash === 'login' || hash === 'register' || hash === 'nosotros' || hash === 'landing') {
+        console.log("🔙 El navegador cambió a:", hash);
+        setVista(hash);
+      } else {
+        // Si no hay hash o es cualquier otra cosa, vamos a la landing
+        setVista("landing");
+      }
+    };
 
-  // --- 🛡️ EFECTO PATOVICA REAL ---
+    // Escuchamos cuando cambia el hash (flecha atrás/adelante de Chrome)
+    window.addEventListener("hashchange", sincronizarVistaConURL);
+    
+    // Ejecutamos al cargar por si el usuario entra directo a /#login
+    sincronizarVistaConURL();
+
+    return () => window.removeEventListener("hashchange", sincronizarVistaConURL);
+  }, []);
+
+  // --- FUNCIÓN NAVEGAR MEJORADA ---
+  const navegarA = (nuevaVista: "landing" | "login" | "register" | "agenda" | "nosotros") => {
+    if (nuevaVista === "landing") {
+      // Limpiamos el hash para volver a la URL base /
+      window.location.hash = "";
+      // Si el navegador no limpia el hash solo, forzamos la vista
+      setVista("landing");
+    } else {
+      // Esto cambia la URL a /#login, lo que genera un historial real
+      window.location.hash = nuevaVista;
+      setVista(nuevaVista);
+    }
+  };
+
+  // --- 🛡️ EFECTO PATOVICA (SESIÓN) ---
   React.useEffect(() => {
     if (status === "authenticated") {
       setVista("agenda")
@@ -34,11 +63,9 @@ export default function Home() {
   }, [status, vista])
 
   const handleLogout = async () => {
-    // Cerramos sesión en serio y mandamos a la landing
     await signOut({ callbackUrl: "/" })
   }
 
-  // Mientras NextAuth chequea las cookies, mostramos un estado neutro
   if (!mounted || status === "loading") {
     return (
       <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
@@ -47,20 +74,18 @@ export default function Home() {
     )
   }
 
-  // --- RENDERIZADO DE VISTAS ---
-
-  // 1. Si hay sesión, forzamos la vista de Agenda
+  // Si hay sesión, ignoramos el sistema de vistas
   if (session) {
     return (
       <AgendaView 
         usuario={session.user} 
         onLogout={handleLogout} 
-        onUpdateUser={() => { /* Opcional: recargar sesión */ }}
+        onUpdateUser={() => {}}
       />
     )
   }
 
-  // 2. Si no hay sesión, usamos el sistema de ruteo interno
+  // --- RENDERIZADO DE VISTAS ---
   switch (vista) {
     case "nosotros":
       return <NosotrosSection onVolver={() => navegarA("landing")} />
@@ -68,7 +93,7 @@ export default function Home() {
     case "login":
       return (
         <LoginPage 
-          onLoginSuccess={() => { /* El useEffect de status detectará el cambio solo */ }}
+          onLoginSuccess={() => {}}
           onRegisterClick={() => navegarA("register")} 
           onVolver={() => navegarA("landing")}
         />
@@ -79,26 +104,15 @@ export default function Home() {
         <RegisterPage 
           onRegisterSubmit={async (datos: any) => { 
             try {
-              // 📡 AHORA SÍ: Le pegamos a la API de registro en serio
               const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(datos)
               });
-
               const resData = await res.json();
-
-              if (res.ok) {
-                // ✅ Si la API respondió 201/200, devolvemos true al componente
-                console.log("✅ Registro exitoso en el servidor");
-                return true;
-              } else {
-                // ❌ Si hubo error (ej: email duplicado), devolvemos el mensaje de la API
-                console.error("⚠️ Error de registro:", resData.message);
-                return resData.message || "No se pudo crear la cuenta";
-              }
+              if (res.ok) return true;
+              return resData.message || "No se pudo crear la cuenta";
             } catch (err) {
-              console.error("🔥 Error de conexión:", err);
               return "Error de red. Verificá tu conexión.";
             }
           }} 
