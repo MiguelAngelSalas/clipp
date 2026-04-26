@@ -4,9 +4,10 @@ import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
   try {
-    const { token, password } = await request.json();
+    const { resetToken, password } = await request.json();
+    console.log("Datos recibidos en el backend:", { resetToken, password });
 
-    if (!token || !password) {
+    if (!resetToken || !password) {
       return NextResponse.json(
         { message: "Token y contraseña son requeridos" },
         { status: 400 }
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     // 1. Buscamos al usuario por el token y verificamos que no haya expirado
     const usuario = await prisma.comercios.findFirst({
       where: {
-        resetToken: token,
+        resetToken: resetToken,
         resetTokenExpiry: {
           gt: new Date(), // El expiry debe ser mayor a "ahora"
         },

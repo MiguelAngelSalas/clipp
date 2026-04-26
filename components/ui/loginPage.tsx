@@ -39,10 +39,30 @@ export function LoginPage({ onLoginSuccess, onVolver, onRegisterClick }: LoginPa
     setLoading(true)
     setError(null)
 
+    // 🔥 ACÁ ESTÁ EL CAMBIO: Lógica real de recuperación
     if (mode === 'recovery') {
-      toast.info("Función de recuperación en mantenimiento")
-      setLoading(false)
-      return
+      try {
+        console.log("Email que intenta mandar el front:", email.trim());
+        const res = await fetch('/api/auth/recuperar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() })
+        })
+
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.message || "Error al intentar enviar el correo")
+        }
+
+        // Si sale bien, avisamos y volvemos a la vista de login
+        toast.success("Si el email está registrado, te enviamos un link para recuperar tu clave.")
+        setMode('login')
+      } catch (err: any) {
+        setError(err.message || "Hubo un problema de conexión. Intentá de nuevo.")
+      } finally {
+        setLoading(false)
+      }
+      return // 🛑 IMPORTANTE: Cortamos acá para que no ejecute el login de abajo
     }
 
     try {

@@ -12,7 +12,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const token = searchParams.get("token")
+  const resetToken = searchParams.get("token")
 
   const [password, setPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
@@ -33,7 +33,7 @@ function ResetPasswordForm() {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ resetToken, password }),
       })
 
       const data = await res.json()
@@ -103,7 +103,7 @@ function ResetPasswordForm() {
 
       <Button 
         type="submit" 
-        disabled={status === "loading" || !token} 
+        disabled={status === "loading" || !resetToken} 
         className="w-full bg-[#7A9A75] hover:bg-[#688563] py-7 text-lg font-bold"
       >
         {status === "loading" ? <Loader2 className="animate-spin" /> : "ACTUALIZAR CONTRASEÑA"}
