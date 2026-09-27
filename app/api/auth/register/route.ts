@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     console.log("✅ Comercio creado en DB con ID:", nuevoComercio.id_comercio);
 
     // 5. ENVÍO DE EMAIL (Resend)
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = process.env.APP_URL || "http://localhost:3000";
     const linkVerificacion = `${baseUrl}/verify-email?token=${verificationToken}`;
 
     try {
